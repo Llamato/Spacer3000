@@ -1,3 +1,16 @@
 .build/
 .glad/
 .vscode/c_cpp_properties.json
+buildandrun.sh
+main.c
+build/spacer3000
+build/Debug/main.o
+glad/glad.c
+glad/glad.h
+buildandrun.sh
+.idea/.gitignore
+.idea/editor.xml
+.idea/modules.xml
+.idea/Spacer3000.iml
+.idea/vcs.xml
+build/spacer3000
