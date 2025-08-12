@@ -60,7 +60,7 @@
 
 //Camera Definitions
 #define CAMERA_ZOOM_SPEED 1.0f
-#define CAMERA_ZOOM_INITAL 0.25f
+#define CAMERA_ZOOM_INITIAL 0.25f
 #define CAMERA_ZOOM_MAX 1.0f
 #define CAMERA_ZOOM_MIN 0.1f
 
@@ -295,9 +295,8 @@ void updateCamera(struct Camera *cam, struct Spaceship *ship, float deltaTime){
 
 
 void updateShipPosition(struct Spaceship *ship, double deltaTime){
-    GLfloat thrustAcceleration = ship->thrust / ship->mass;
-    ship->acceleration.x += thrustAcceleration * cos(ship->orientation) * deltaTime;
-    ship->acceleration.y += thrustAcceleration * sin(ship->orientation) * deltaTime;
+    ship->acceleration.x += ship->thrust / ship->mass * cos(ship->orientation) * deltaTime;
+    ship->acceleration.y += ship->thrust / ship->mass * sin(ship->orientation) * deltaTime;
     ship->velocity.x += ship->acceleration.x * deltaTime;
     ship->velocity.y += ship->acceleration.y * deltaTime;
     ship->position.x += ship->velocity.x * deltaTime; 
@@ -378,7 +377,7 @@ void applyGravity(struct Planet *planet, struct Spaceship *ship, double deltaTim
     ship->acceleration.y += acceleration.y;
 }
 
-//Game state veriables
+//Game state variables
 int main(int argc, char* argv[]){
     int glfwstatus = glfwInit();
     if(!glfwstatus){
@@ -404,7 +403,7 @@ int main(int argc, char* argv[]){
     cameraPosition.x = 0;
     cameraPosition.y = 0;
     camera.position = cameraPosition;
-    camera.zoom = CAMERA_ZOOM_INITAL;
+    camera.zoom = CAMERA_ZOOM_INITIAL;
 
     //Planet
     struct Planet paleBlueDot;
@@ -431,15 +430,15 @@ int main(int argc, char* argv[]){
         0.0f-0.5f, 0.25f * 1.732051f , 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f
     };
     convertScreenSpaceToLocal(triangleShipVertices, VERTS_IN_TRIANGLE);
-    struct Vector2 initalPlayerShipPosition = {SHIP_INITIAL_POSITION_X, SHIP_INITIAL_POSITION_Y};
-    translateVertexArray(triangleShipVertices, VERTS_IN_TRIANGLE,&initalPlayerShipPosition);
-    struct Vector2 initialMovementDirection = getPerpendicularVector(getDirection(&initalPlayerShipPosition, &paleBlueDotPosition));
-    GLfloat initialMovementMagnitude = sqrtf(GRAVITATIONAL_CONSTANT * PLANET_MASS / getDistance(&initalPlayerShipPosition, &paleBlueDotPosition));
-    struct Vector2 initalPlayerShipVelocity;
-    //initalPlayerShipVelocity.x = initialMovementDirection.x * initialMovementMagnitude;
-    //initalPlayerShipVelocity.y = initialMovementDirection.y * initialMovementMagnitude;
-    initalPlayerShipVelocity.x = SHIP_INITIAL_VELOCITY_X;
-    initalPlayerShipVelocity.y = SHIP_INITIAL_VELOCITY_Y;
+    struct Vector2 INITIALPlayerShipPosition = {SHIP_INITIAL_POSITION_X, SHIP_INITIAL_POSITION_Y};
+    translateVertexArray(triangleShipVertices, VERTS_IN_TRIANGLE,&INITIALPlayerShipPosition);
+    struct Vector2 initialMovementDirection = getPerpendicularVector(getDirection(&INITIALPlayerShipPosition, &paleBlueDotPosition));
+    GLfloat initialMovementMagnitude = sqrtf(GRAVITATIONAL_CONSTANT * PLANET_MASS / getDistance(&INITIALPlayerShipPosition, &paleBlueDotPosition));
+    struct Vector2 initialPlayerShipVelocity;
+    //INITIALPlayerShipVelocity.x = initialMovementDirection.x * initialMovementMagnitude;
+    //INITIALPlayerShipVelocity.y = initialMovementDirection.y * initialMovementMagnitude;
+    initialPlayerShipVelocity.x = SHIP_INITIAL_VELOCITY_X;
+    initialPlayerShipVelocity.y = SHIP_INITIAL_VELOCITY_Y;
     struct Spaceship playerShip;
     playerShip.bodyVertexDataArray = triangleShipVertices;
     scaleVertexDataArray(playerShip.bodyVertexDataArray, 3, .5f);
@@ -448,7 +447,7 @@ int main(int argc, char* argv[]){
     struct Vector2 playerShipVertex2Position = {playerShip.bodyVertexDataArray[2 * FLOATS_IN_VERTEX + VECTOR_X], playerShip.bodyVertexDataArray[2 * FLOATS_IN_VERTEX * VECTOR_Y]};
     playerShip.mass = SHIP_MASS;
     playerShip.position = getTriangleMiddleFromVertexPositions(playerShipVertex0Position, playerShipVertex1Position, playerShipVertex2Position);
-    playerShip.velocity = initalPlayerShipVelocity;
+    playerShip.velocity = initialPlayerShipVelocity;
     playerShip.acceleration.x = SHIP_INITIAL_ACCELERATION_X;
     playerShip.acceleration.y = SHIP_INITIAL_ACCELERATION_Y;
     playerShip.thrust = SHIP_INITIAL_THRUST;
