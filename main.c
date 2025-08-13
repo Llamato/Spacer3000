@@ -54,6 +54,7 @@
 #define SHIP_INITIAL_VELOCITY_Y 0.0f
 #define SHIP_INITIAL_ACCELERATION_X 0.0f
 #define SHIP_INITIAL_ACCELERATION_Y 0.0f
+#define SHIP_INITIAL_ORIENTATION 0.0f
 #define SHIP_INITIAL_THRUST 0.0f
 #define THRUST_TRIANGLE_BASE_WIDTH 0.1f
 #define THRUST_TRIANGLE_TIP_EXTEND 0.1f
@@ -99,7 +100,7 @@ struct Spaceship{
     GLfloat mass;
     float orientation;
 
-    //Structual Data
+    //Structural Data
     struct Color color;
     GLfloat *bodyVertexDataArray;
     GLfloat *thrustTriangleVertexDataArray;
@@ -111,19 +112,32 @@ struct Planet{
     GLfloat radius;
     float mass;
 
-    //Structual Data
+    //Structural Data
     struct Color color;
     GLfloat *vertexDataArray;
     size_t vertexCount;
 };
 
+void printVertexArray(GLfloat* vertexDataArray, size_t vertexCount){ //Debug!!!
+    printf("x\ty\t,z\n");
+    for(int currentVertex = 0; currentVertex < vertexCount; currentVertex++){
+        printf("%i:\t%f\t%f\t%f\n", currentVertex, vertexDataArray[currentVertex * FLOATS_IN_VERTEX+VECTOR_X], vertexDataArray[currentVertex * FLOATS_IN_VERTEX+VECTOR_Y], vertexDataArray[currentVertex * FLOATS_IN_VERTEX+VECTOR_Z]);
+    }
+}
+
 char* readShaderFile(const char* filename){
     FILE *f = fopen(filename, "rb");
+    if(f == NULL)
+        return NULL;
     fseek(f, 0, SEEK_END);
 
     long fsize = ftell(f);
     fseek(f, 0, SEEK_SET);
 
+    if(fsize == 0){
+        fclose(f);
+        return NULL;
+    }
     char *string = malloc(fsize + 1);
     fread(string, fsize, 1, f);
     fclose(f);
@@ -232,7 +246,7 @@ struct Vector2 getPerpendicularVector(struct Vector2 vector){
     return parallelVector;
 }
 
-//Engine veriables
+//Engine variables
 double gameLoopStartTime = 0;
 double gameLoopEndTime = 1;
 double frameTime = 1;
@@ -267,8 +281,10 @@ void translateOrigin(GLfloat *vertexDataArray, size_t vertexCount, struct Vector
 
 void rotateVertexArray(GLfloat* vertexArray, size_t vertexCount, float rotationAngle){
     for(size_t currentVertexStartIndex = 0; currentVertexStartIndex < vertexCount * FLOATS_IN_VERTEX; currentVertexStartIndex += FLOATS_IN_VERTEX){
-        vertexArray[currentVertexStartIndex] = vertexArray[currentVertexStartIndex] * cosf(rotationAngle) - vertexArray[currentVertexStartIndex +1] * sinf(rotationAngle);
-        vertexArray[currentVertexStartIndex +1] = vertexArray[currentVertexStartIndex] * sinf(rotationAngle) + vertexArray[currentVertexStartIndex +1] * cosf(rotationAngle); 
+        GLfloat newX = vertexArray[currentVertexStartIndex] * cosf(rotationAngle) - vertexArray[currentVertexStartIndex +1] * sinf(rotationAngle);
+        GLfloat newY = vertexArray[currentVertexStartIndex] * sinf(rotationAngle) + vertexArray[currentVertexStartIndex +1] * cosf(rotationAngle); 
+        vertexArray[currentVertexStartIndex] = newX;
+        vertexArray[currentVertexStartIndex +1] = newY;
     }
 }
 
@@ -288,6 +304,24 @@ void convertScreenSpaceToLocal(GLfloat* vertexArray, size_t vertexCount){
     }
 }
 
+
+void getTriangleVertices(GLfloat* vertexDataArray, GLfloat size){
+    GLfloat triangleShipVertices[] = {
+        -0.25f * size, -0.192450f * size, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f,
+        0.25f * size, -0.192450f * size, 0.0f,0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f,
+        0.0f * size, 0.384900f * size, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f
+    };
+
+    for(size_t currentVertex = 0; currentVertex < VERTS_IN_TRIANGLE; currentVertex++){
+        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + VECTOR_X] = triangleShipVertices[currentVertex * FLOATS_IN_VERTEX + VECTOR_X];
+        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + VECTOR_Y] = triangleShipVertices[currentVertex * FLOATS_IN_VERTEX + VECTOR_Y];
+        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + VECTOR_Z] = triangleShipVertices[currentVertex * FLOATS_IN_VERTEX + VECTOR_Z];
+        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + COLOR_R] = triangleShipVertices[currentVertex * FLOATS_IN_VERTEX + COLOR_R];
+        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + COLOR_G] = triangleShipVertices[currentVertex * FLOATS_IN_VERTEX + COLOR_G];
+        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + COLOR_B] = triangleShipVertices[currentVertex * FLOATS_IN_VERTEX + COLOR_B];
+    }
+}
+
 void updateCamera(struct Camera *cam, struct Spaceship *ship, float deltaTime){
     cam->position.x = ship->position.x;
     cam->position.y = ship->position.y;
@@ -301,24 +335,22 @@ void updateShipPosition(struct Spaceship *ship, double deltaTime){
     ship->velocity.y += ship->acceleration.y * deltaTime;
     ship->position.x += ship->velocity.x * deltaTime; 
     ship->position.y += ship->velocity.y * deltaTime;
-
-    ship->bodyVertexDataArray[FLOATS_IN_VERTEX * TRIANGLE_VERTEX_LEFT + VECTOR_X] += ship->velocity.x * deltaTime;
-    ship->bodyVertexDataArray[FLOATS_IN_VERTEX * TRIANGLE_VERTEX_LEFT + VECTOR_Y] += ship->velocity.y * deltaTime;
-
-    ship->bodyVertexDataArray[FLOATS_IN_VERTEX * TRIANGLE_VERTEX_RIGHT + VECTOR_X] += ship->velocity.x * deltaTime;
-    ship->bodyVertexDataArray[FLOATS_IN_VERTEX * TRIANGLE_VERTEX_RIGHT + VECTOR_Y] += ship->velocity.y * deltaTime;
-
-    ship->bodyVertexDataArray[FLOATS_IN_VERTEX * TRIANGLE_VERTEX_MIDDLE + VECTOR_X] += ship->velocity.x * deltaTime;
-    ship->bodyVertexDataArray[FLOATS_IN_VERTEX * TRIANGLE_VERTEX_MIDDLE + VECTOR_Y] += ship->velocity.y * deltaTime;
+    
+    //ship->bodyVertexDataArray[FLOATS_IN_VERTEX * TRIANGLE_VERTEX_LEFT + VECTOR_X] += ship->velocity.x * deltaTime;
+    //ship->bodyVertexDataArray[FLOATS_IN_VERTEX * TRIANGLE_VERTEX_LEFT + VECTOR_Y] += ship->velocity.y * deltaTime;
+    //ship->bodyVertexDataArray[FLOATS_IN_VERTEX * TRIANGLE_VERTEX_RIGHT + VECTOR_X] += ship->velocity.x * deltaTime;
+    //ship->bodyVertexDataArray[FLOATS_IN_VERTEX * TRIANGLE_VERTEX_RIGHT + VECTOR_Y] += ship->velocity.y * deltaTime;
+    //ship->bodyVertexDataArray[FLOATS_IN_VERTEX * TRIANGLE_VERTEX_MIDDLE + VECTOR_X] += ship->velocity.x * deltaTime;
+    //ship->bodyVertexDataArray[FLOATS_IN_VERTEX * TRIANGLE_VERTEX_MIDDLE + VECTOR_Y] += ship->velocity.y * deltaTime;
 }
 
 void updateShipOrientation(struct Spaceship *ship, GLfloat tourge, double deltaTime){
     float newOrientation = fmod(ship->orientation + tourge * deltaTime, 2 * M_PI);
     struct Vector2 screenSpaceOrigin = {0,0};
-    translateOrigin(ship->bodyVertexDataArray, FLOATS_IN_VERTEX * VERTS_IN_TRIANGLE, &screenSpaceOrigin, &ship->position);
-    rotateVertexArray(ship->bodyVertexDataArray, VERTS_IN_TRIANGLE, newOrientation - ship->orientation);
-    translateOrigin(ship->bodyVertexDataArray, FLOATS_IN_VERTEX * VERTS_IN_TRIANGLE, &ship->position, &screenSpaceOrigin);
     ship->orientation = newOrientation;
+    /*translateOrigin(ship->bodyVertexDataArray, FLOATS_IN_VERTEX * VERTS_IN_TRIANGLE, &screenSpaceOrigin, &ship->position);
+    rotateVertexArray(ship->bodyVertexDataArray, VERTS_IN_TRIANGLE, newOrientation - ship->orientation);
+    translateOrigin(ship->bodyVertexDataArray, FLOATS_IN_VERTEX * VERTS_IN_TRIANGLE, &ship->position, &screenSpaceOrigin);*/
 }
 
 void updateShipThrust(struct Spaceship *ship, GLfloat buttonForce, double deltaTime){
@@ -375,6 +407,12 @@ void applyGravity(struct Planet *planet, struct Spaceship *ship, double deltaTim
     acceleration.y = force.y / ship->mass;
     ship->acceleration.x += acceleration.x;
     ship->acceleration.y += acceleration.y;
+}
+
+void applyShipPositionAndOrientation(struct Spaceship *ship){
+    getTriangleVertices(ship->bodyVertexDataArray, 1.0f);
+    rotateVertexArray(ship->bodyVertexDataArray, VERTS_IN_TRIANGLE, ship->orientation);
+    translateVertexArray(ship->bodyVertexDataArray, VERTS_IN_TRIANGLE, &ship->position);
 }
 
 //Game state variables
@@ -451,7 +489,7 @@ int main(int argc, char* argv[]){
     playerShip.acceleration.x = SHIP_INITIAL_ACCELERATION_X;
     playerShip.acceleration.y = SHIP_INITIAL_ACCELERATION_Y;
     playerShip.thrust = SHIP_INITIAL_THRUST;
-    playerShip.orientation = M_PI / 2;
+    playerShip.orientation = SHIP_INITIAL_ORIENTATION;
 
     struct Color thurstTriangleColor = {0.9f, 0.0f, 0.0f};
     GLfloat thrustTriangleVertices[VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX];
@@ -615,6 +653,7 @@ int main(int argc, char* argv[]){
                 camera.zoom = gclamp(camera.zoom, CAMERA_ZOOM_MAX, CAMERA_ZOOM_MIN);
             }
 
+            updateShipPosition(&playerShip, PHYSICS_TIME_DELTA);
             if(glfwGetKey(window, GLFW_KEY_A)){
                 updateShipOrientation(&playerShip, SHIP_RCS_TOURGE, PHYSICS_TIME_DELTA);
             }else if(glfwGetKey(window, GLFW_KEY_D)){
@@ -624,9 +663,10 @@ int main(int argc, char* argv[]){
             //Do physics here
             playerShip.acceleration.x = 0.0f;
             playerShip.acceleration.y = 0.0f;
+            applyShipPositionAndOrientation(&playerShip);
             updateThrustTriangle(thrustTriangleVertices, &playerShip, &thurstTriangleColor);
             applyGravity(&paleBlueDot, &playerShip, PHYSICS_TIME_DELTA);
-            updateShipPosition(&playerShip, PHYSICS_TIME_DELTA);
+
             timeAccumulator = 0;
         }
     }
