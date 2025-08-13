@@ -335,22 +335,12 @@ void updateShipPosition(struct Spaceship *ship, double deltaTime){
     ship->velocity.y += ship->acceleration.y * deltaTime;
     ship->position.x += ship->velocity.x * deltaTime; 
     ship->position.y += ship->velocity.y * deltaTime;
-    
-    //ship->bodyVertexDataArray[FLOATS_IN_VERTEX * TRIANGLE_VERTEX_LEFT + VECTOR_X] += ship->velocity.x * deltaTime;
-    //ship->bodyVertexDataArray[FLOATS_IN_VERTEX * TRIANGLE_VERTEX_LEFT + VECTOR_Y] += ship->velocity.y * deltaTime;
-    //ship->bodyVertexDataArray[FLOATS_IN_VERTEX * TRIANGLE_VERTEX_RIGHT + VECTOR_X] += ship->velocity.x * deltaTime;
-    //ship->bodyVertexDataArray[FLOATS_IN_VERTEX * TRIANGLE_VERTEX_RIGHT + VECTOR_Y] += ship->velocity.y * deltaTime;
-    //ship->bodyVertexDataArray[FLOATS_IN_VERTEX * TRIANGLE_VERTEX_MIDDLE + VECTOR_X] += ship->velocity.x * deltaTime;
-    //ship->bodyVertexDataArray[FLOATS_IN_VERTEX * TRIANGLE_VERTEX_MIDDLE + VECTOR_Y] += ship->velocity.y * deltaTime;
 }
 
 void updateShipOrientation(struct Spaceship *ship, GLfloat tourge, double deltaTime){
     float newOrientation = fmod(ship->orientation + tourge * deltaTime, 2 * M_PI);
     struct Vector2 screenSpaceOrigin = {0,0};
     ship->orientation = newOrientation;
-    /*translateOrigin(ship->bodyVertexDataArray, FLOATS_IN_VERTEX * VERTS_IN_TRIANGLE, &screenSpaceOrigin, &ship->position);
-    rotateVertexArray(ship->bodyVertexDataArray, VERTS_IN_TRIANGLE, newOrientation - ship->orientation);
-    translateOrigin(ship->bodyVertexDataArray, FLOATS_IN_VERTEX * VERTS_IN_TRIANGLE, &ship->position, &screenSpaceOrigin);*/
 }
 
 void updateShipThrust(struct Spaceship *ship, GLfloat buttonForce, double deltaTime){
