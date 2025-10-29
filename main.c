@@ -139,9 +139,10 @@ char* readShaderFile(const char* filename){
         return NULL;
     }
     char *string = malloc(fsize + 1);
-    fread(string, fsize, 1, f);
+    if(fread(string, fsize, 1, f) < 1){
+        printf("Error loading shader: %s", filename);
+    }
     fclose(f);
-
     string[fsize] = 0;
     return string;
 }
@@ -422,7 +423,11 @@ int main(int argc, char* argv[]){
     }
     glfwMakeContextCurrent(window);
 
-    gladLoadGL();
+   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        printf("Failed to initialize GLAD with GLFW loader\n");
+        return -1;
+    }
+
     glViewport(0, 0, PLAYFIELD_WIDTH, PLAYFIELD_HEIGHT);
 
     //Camera
