@@ -56,6 +56,7 @@
               gdb
               clang-tools
               bear
+              vscodium-fhs
             ];
           };
         }

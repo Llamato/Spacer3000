@@ -1,14 +1,32 @@
 #include "glad/glad.h"
-#include<GLFW/glfw3.h>
+#include <GLFW/glfw3.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
 
+//unix specific
+#include <unistd.h>
+
 //Playfield
-#define PLAYFIELD_WIDTH 1000
-#define PLAYFIELD_HEIGHT 1000
+#define PLAYFIELD_WIDTH 1024
+#define PLAYFIELD_HEIGHT 1024
+
+//Camera Definitions
+#define CAMERA_ZOOM_SPEED 1.0f
+#define CAMERA_ZOOM_INITIAL 0.5f
+#define CAMERA_ZOOM_MAX 1.0f
+#define CAMERA_ZOOM_MIN 0.1f
+
+//Key Map
+#define INCREASE_THRUST_KEY GLFW_KEY_LEFT_SHIFT
+#define DECREASE_THRUST_KEY GLFW_KEY_LEFT_CONTROL
+#define MAX_THRUST_KEY GLFW_KEY_Z
+#define ALT_MAX_THRUST_KEY GLFW_KEY_Y
+#define KILL_THRUST_KEY GLFW_KEY_H
+#define INCREASE_ZOOM_KEY GLFW_KEY_I
+#define DECREASE_ZOOM_KEY GLFW_KEY_K
 
 //Vertex data format
 #define VECTOR_X 0
@@ -59,21 +77,6 @@
 #define THRUST_TRIANGLE_BASE_WIDTH 0.1f
 #define THRUST_TRIANGLE_TIP_EXTEND 0.1f
 
-//Camera Definitions
-#define CAMERA_ZOOM_SPEED 1.0f
-#define CAMERA_ZOOM_INITIAL 0.25f
-#define CAMERA_ZOOM_MAX 1.0f
-#define CAMERA_ZOOM_MIN 0.1f
-
-//Key Map
-#define INCREASE_THRUST_KEY GLFW_KEY_LEFT_SHIFT
-#define DECREASE_THRUST_KEY GLFW_KEY_LEFT_CONTROL
-#define MAX_THRUST_KEY GLFW_KEY_Z
-#define ALT_MAX_THRUST_KEY GLFW_KEY_Y
-#define KILL_THRUST_KEY GLFW_KEY_H
-#define INCREASE_ZOOM_KEY GLFW_KEY_RIGHT_SHIFT
-#define DECREASE_ZOOM_KEY GLFW_KEY_RIGHT_CONTROL
-
 struct Vector2{
     GLfloat x;
     GLfloat y;
@@ -118,10 +121,26 @@ struct Planet{
     size_t vertexCount;
 };
 
+struct Pad{
+    //Physical Data
+    float angle;
+    struct Planet *parentPlanet;
+    
+    //Structural Data
+    GLfloat *vertexDataArray;
+    size_t vertexCount;
+};
+
 void printVertexArray(GLfloat* vertexDataArray, size_t vertexCount){ //Debug!!!
     printf("x\ty\t,z\n");
     for(int currentVertex = 0; currentVertex < vertexCount; currentVertex++){
-        printf("%i:\t%f\t%f\t%f\n", currentVertex, vertexDataArray[currentVertex * FLOATS_IN_VERTEX+VECTOR_X], vertexDataArray[currentVertex * FLOATS_IN_VERTEX+VECTOR_Y], vertexDataArray[currentVertex * FLOATS_IN_VERTEX+VECTOR_Z]);
+        printf(
+            "%i:\t%f\t%f\t%f\n", 
+            currentVertex, 
+            vertexDataArray[currentVertex * FLOATS_IN_VERTEX+VECTOR_X], 
+            vertexDataArray[currentVertex * FLOATS_IN_VERTEX+VECTOR_Y], 
+            vertexDataArray[currentVertex * FLOATS_IN_VERTEX+VECTOR_Z]
+        );
     }
 }
 
@@ -406,6 +425,19 @@ void applyShipPositionAndOrientation(struct Spaceship *ship){
     translateVertexArray(ship->bodyVertexDataArray, VERTS_IN_TRIANGLE, &ship->position);
 }
 
+int currentWindowWidth = PLAYFIELD_WIDTH;
+int currentWindowHeight = PLAYFIELD_HEIGHT;
+void windowResizeCallback(GLFWwindow* window, int width, int height){
+    glViewport(0, 0, width, height);
+    currentWindowWidth = width;
+    currentWindowHeight = height;
+}
+
+int windowIsFocused = 1;
+void windowFocusCallback(GLFWwindow* window, int focused){
+    windowIsFocused = focused;
+}
+
 //Game state variables
 int main(int argc, char* argv[]){
     int glfwstatus = glfwInit();
@@ -416,8 +448,11 @@ int main(int argc, char* argv[]){
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
+    
     GLFWwindow* window = glfwCreateWindow(PLAYFIELD_WIDTH, PLAYFIELD_HEIGHT, "Spacer3000", NULL, NULL);
+    glfwSetWindowSizeCallback(window, windowResizeCallback);
+    glfwSetWindowFocusCallback(window, windowFocusCallback);
+    
     if(window == NULL){
         printf("%s\n", "Failed to create GLFW window");
     }
@@ -491,11 +526,15 @@ int main(int argc, char* argv[]){
     updateThrustTriangle(thrustTriangleVertices, &playerShip, &thurstTriangleColor);
     playerShip.thrustTriangleVertexDataArray = thrustTriangleVertices;
 
-    const char* vertexShaderSource = readShaderFile("shaders/default.vert");
-    const char* fragmentShaderSource = readShaderFile("shaders/default.frag");
+    //Loading all shaders
+    const char* defaultVertexShaderSource = readShaderFile("shaders/default.vert");
+    const char* defaultFragmentShaderSource = readShaderFile("shaders/default.frag");
+    const char* padFragmentShaderSource = readShaderFile("shaders/pad.frag");
+    const char* technoFragmentShaderSource = readShaderFile("shaders/techno.frag");
+    
 
     GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
+    glShaderSource(vertexShader, 1, &defaultVertexShaderSource, NULL);
     glCompileShader(vertexShader);
 
     GLint success;
@@ -507,7 +546,7 @@ int main(int argc, char* argv[]){
     }
 
     GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
+    glShaderSource(fragmentShader, 1, &defaultFragmentShaderSource, NULL);
     glCompileShader(fragmentShader);
 
     glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
@@ -573,6 +612,12 @@ int main(int argc, char* argv[]){
     glfwSwapBuffers(window);
 
     while(!glfwWindowShouldClose(window)){
+        if(!windowIsFocused){
+            sleep(1);
+            glfwPollEvents();
+            continue;
+        }
+
         gameLoopStartTime = glfwGetTime();
 
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -606,7 +651,7 @@ int main(int argc, char* argv[]){
         GLuint screenSizeGPUptr = glGetUniformLocation(shaderProgram, "screenSize");
         GLuint zoomGPUptr = glGetUniformLocation(shaderProgram, "zoom");
         glUniform2f(cameraPositionGPUptr, camera.position.x, camera.position.y);
-        glUniform2f(screenSizeGPUptr, PLAYFIELD_WIDTH, PLAYFIELD_HEIGHT);
+        glUniform2f(screenSizeGPUptr, currentWindowWidth, currentWindowHeight);
         glUniform1f(zoomGPUptr, camera.zoom);
 
         glBindVertexArray(circleVAO);
