@@ -1,11 +1,11 @@
 #version 330 core
 layout (location = 0) in vec3 aPos;
-layout (location = 1) in vec3 aColor;
 
 uniform vec2 cameraPos;
 uniform vec2 screenSize;
 uniform float zoom;
-out vec3 color;
+
+out vec2 fragCoord;
 
 void main()
 {
@@ -13,5 +13,5 @@ void main()
     vec2 viewPos = (aPos.xy - cameraPos) * zoom;
     viewPos.x /= aspect;
     gl_Position = vec4(viewPos, aPos.z, 1.0);
-    color = aColor;
+    fragCoord = aPos.xy;
 }
