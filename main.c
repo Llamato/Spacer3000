@@ -429,7 +429,6 @@ void applyShipPositionAndOrientation(struct Spaceship *ship){
     translateVertexArray(ship->bodyVertexDataArray, VERTS_IN_TRIANGLE, &ship->position);
 }
 
-
 //Event handlers
 int currentWindowWidth = PLAYFIELD_WIDTH;
 int currentWindowHeight = PLAYFIELD_HEIGHT;
@@ -588,7 +587,7 @@ int main(int argc, char* argv[]){
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
 
-    GLuint shipVAO, thrustVAO, planetVAO, shipVBO, thrustVBO, planetVBO;
+    GLuint shipVAO, thrustVAO, planetVAO, shipVBO, thrustVBO, planetVBO, padVAO, padVBO;
     makeGlObject(&shipVAO, &shipVBO, playerShip.bodyVertexDataArray, VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat));
     makeGlObject(&thrustVAO, &thrustVBO, playerShip.thrustTriangleVertexDataArray, VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat));
     makeGlObject(&planetVAO, &planetVBO, paleBlueDot.vertexDataArray,  paleBlueDot.vertexCount * FLOATS_IN_VERTEX * sizeof(GLfloat));

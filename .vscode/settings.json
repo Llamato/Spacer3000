@@ -1,6 +1,6 @@
 {
   "editor.rulers": [
-    80
+    
   ],
   "C_Cpp_Runner.cCompilerPath": "gcc",
   "C_Cpp_Runner.cppCompilerPath": "g++",
