@@ -9,6 +9,10 @@
 //unix specific
 #include <unistd.h>
 
+
+//OpenGL specific definitions
+#define ERROR_MESSAGE_MAX_LENGTH 512
+
 //Playfield
 #define PLAYFIELD_WIDTH 1024
 #define PLAYFIELD_HEIGHT 1024
@@ -425,6 +429,8 @@ void applyShipPositionAndOrientation(struct Spaceship *ship){
     translateVertexArray(ship->bodyVertexDataArray, VERTS_IN_TRIANGLE, &ship->position);
 }
 
+
+//Event handlers
 int currentWindowWidth = PLAYFIELD_WIDTH;
 int currentWindowHeight = PLAYFIELD_HEIGHT;
 void windowResizeCallback(GLFWwindow* window, int width, int height){
@@ -436,6 +442,44 @@ void windowResizeCallback(GLFWwindow* window, int width, int height){
 int windowIsFocused = 1;
 void windowFocusCallback(GLFWwindow* window, int focused){
     windowIsFocused = focused;
+}
+
+//OpenGL wrapper functions
+void makeGlObject(GLuint* vao, GLuint* vbo, GLfloat* bufferData, size_t bufferSize) {
+    glGenVertexArrays(1, vao);
+    glGenBuffers(1, vbo);
+    glBindVertexArray(*vao);
+    glBindBuffer(GL_ARRAY_BUFFER, *vbo);
+    glBufferData(GL_ARRAY_BUFFER, bufferSize, bufferData, GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*) 0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_TRUE, 6 * sizeof(float), (void*) (3*sizeof(float)));
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+}
+
+GLuint makeGlShader(const char* source, GLuint type) {
+    GLuint shader = glCreateShader(type);
+    glShaderSource(shader, 1, &source, NULL);
+    glCompileShader(shader);
+    GLint success;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (!success){
+        char infoLog[ERROR_MESSAGE_MAX_LENGTH];
+        glGetShaderInfoLog(shader, ERROR_MESSAGE_MAX_LENGTH, NULL, infoLog);
+        printf("Vertex shader compilation failed: %s\n", infoLog);
+    }
+    return shader;
+}
+
+void drawGlObject(GLuint vao, GLuint vbo, GLfloat* bufferData, size_t bufferSize, GLuint perimitiveType, GLuint vertexCount) {
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, bufferSize, bufferData);
+    glDrawArrays(perimitiveType, 0, vertexCount);
+    GLenum shipError;
+    while((shipError = glGetError()) != GL_NO_ERROR){
+        printf("OpenGL error: %x\n", shipError);
+    }
 }
 
 //Game state variables
@@ -488,7 +532,6 @@ int main(int argc, char* argv[]){
     paleBlueDot.color = paleBlueColor;
     paleBlueDot.vertexDataArray = getTrianglefanCircle(paleBlueDotPosition.x, paleBlueDotPosition.y, paleBlueDot.radius, PLANET_POLY_COUNT, paleBlueColor.red, paleBlueColor.green, paleBlueColor.blue);
     paleBlueDot.vertexCount = (PLANET_POLY_COUNT + 2);
-    size_t circleFloatCount = paleBlueDot.vertexCount * FLOATS_IN_VERTEX;
 
     //Ship
     GLfloat triangleShipVertices[] = {
@@ -503,8 +546,6 @@ int main(int argc, char* argv[]){
     struct Vector2 initialMovementDirection = getPerpendicularVector(getDirection(&INITIALPlayerShipPosition, &paleBlueDotPosition));
     GLfloat initialMovementMagnitude = sqrtf(GRAVITATIONAL_CONSTANT * PLANET_MASS / getDistance(&INITIALPlayerShipPosition, &paleBlueDotPosition));
     struct Vector2 initialPlayerShipVelocity;
-    //INITIALPlayerShipVelocity.x = initialMovementDirection.x * initialMovementMagnitude;
-    //INITIALPlayerShipVelocity.y = initialMovementDirection.y * initialMovementMagnitude;
     initialPlayerShipVelocity.x = SHIP_INITIAL_VELOCITY_X;
     initialPlayerShipVelocity.y = SHIP_INITIAL_VELOCITY_Y;
     struct Spaceship playerShip;
@@ -521,89 +562,37 @@ int main(int argc, char* argv[]){
     playerShip.thrust = SHIP_INITIAL_THRUST;
     playerShip.orientation = SHIP_INITIAL_ORIENTATION;
 
+    //Thrust vector indicator
     struct Color thurstTriangleColor = {0.9f, 0.0f, 0.0f};
     GLfloat thrustTriangleVertices[VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX];
     updateThrustTriangle(thrustTriangleVertices, &playerShip, &thurstTriangleColor);
     playerShip.thrustTriangleVertexDataArray = thrustTriangleVertices;
 
-    //Loading all shaders
+    //Setup Shaders
     const char* defaultVertexShaderSource = readShaderFile("shaders/default.vert");
+    GLuint vertexShader = makeGlShader(defaultVertexShaderSource, GL_VERTEX_SHADER);
     const char* defaultFragmentShaderSource = readShaderFile("shaders/default.frag");
-    const char* padFragmentShaderSource = readShaderFile("shaders/pad.frag");
-    const char* technoFragmentShaderSource = readShaderFile("shaders/techno.frag");
-    
-
-    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &defaultVertexShaderSource, NULL);
-    glCompileShader(vertexShader);
-
-    GLint success;
-    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-    if (!success){
-        char infoLog[512];
-        glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
-        printf("Vertex shader compilation failed: %s\n", infoLog);
-    }
-
-    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &defaultFragmentShaderSource, NULL);
-    glCompileShader(fragmentShader);
-
-    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-    if (!success){
-        char infoLog[512];
-        glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
-        printf("Fragment shader compilation failed: %s\n", infoLog);
-    }
-
-    GLuint shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
-
-    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+    GLuint fragmentShader = makeGlShader(defaultFragmentShaderSource, GL_FRAGMENT_SHADER);
+    GLuint defaultShaderProgram = glCreateProgram();
+    glAttachShader(defaultShaderProgram, vertexShader);
+    glAttachShader(defaultShaderProgram, fragmentShader);
+    glLinkProgram(defaultShaderProgram);
+    GLuint success;
+    glGetProgramiv(defaultShaderProgram, GL_LINK_STATUS, &success);
     if (!success) {
-        char infoLog[512];
-        glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
+        char infoLog[ERROR_MESSAGE_MAX_LENGTH];
+        glGetProgramInfoLog(defaultShaderProgram, ERROR_MESSAGE_MAX_LENGTH, NULL, infoLog);
         printf("Shader program linking failed: %s\n", infoLog);
     }
 
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
 
-    GLuint shipVAO, thrustVAO, circleVAO, shipVBO, thrustVBO, circleVBO;
-    glGenVertexArrays(1, &shipVAO);
-    glGenVertexArrays(1, &thrustVAO);
-    glGenVertexArrays(1, &circleVAO);
-
-    glGenBuffers(1, &shipVBO);
-    glGenBuffers(1, &thrustVBO);
-    glGenBuffers(1, &circleVBO);
-
-    glBindVertexArray(shipVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, shipVBO);
-    glBufferData(GL_ARRAY_BUFFER, VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat), playerShip.bodyVertexDataArray, GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*) 0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_TRUE, 6 * sizeof(float), (void*) (3*sizeof(float)));
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-
-    glBindVertexArray(thrustVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, thrustVBO);
-    glBufferData(GL_ARRAY_BUFFER, VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat),thrustTriangleVertices, GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*) 0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_TRUE, 6 * sizeof(float), (void*) (3*sizeof(float)));
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-
-    glBindVertexArray(circleVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, circleVBO);
-    glBufferData(GL_ARRAY_BUFFER, circleFloatCount * sizeof(GLfloat), paleBlueDot.vertexDataArray, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*) 0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_TRUE, 6 * sizeof(float), (void*) (3*sizeof(float)));
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-
+    GLuint shipVAO, thrustVAO, planetVAO, shipVBO, thrustVBO, planetVBO;
+    makeGlObject(&shipVAO, &shipVBO, playerShip.bodyVertexDataArray, VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat));
+    makeGlObject(&thrustVAO, &thrustVBO, playerShip.thrustTriangleVertexDataArray, VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat));
+    makeGlObject(&planetVAO, &planetVBO, paleBlueDot.vertexDataArray,  paleBlueDot.vertexCount * FLOATS_IN_VERTEX * sizeof(GLfloat));
+    
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
@@ -618,49 +607,32 @@ int main(int argc, char* argv[]){
             continue;
         }
 
-        gameLoopStartTime = glfwGetTime();
+        gameLoopStartTime = glfwGetTime(); //Keep Time
 
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        glUseProgram(shaderProgram);
-        glBindVertexArray(shipVAO);
-        glBindBuffer(GL_ARRAY_BUFFER, shipVBO);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat), playerShip.bodyVertexDataArray);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
-        GLenum triangleError;
-        while((triangleError = glGetError()) != GL_NO_ERROR){
-            printf("OpenGL error: %x\n", triangleError);
-        }
-        
-        //Setup shader and binding
-        glUseProgram(shaderProgram);
-        glBindVertexArray(thrustVAO);
-        glBindBuffer(GL_ARRAY_BUFFER, thrustVBO);
-        glBufferSubData(GL_ARRAY_BUFFER, 0 , VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat), thrustTriangleVertices);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
-
-        GLenum thrustError;
-        while((thrustError = glGetError()) != GL_NO_ERROR){
-            printf("OpenGL error: %x\n", thrustError);
-        }
-        
         //Setup the vertex shader
-        glUseProgram(shaderProgram);
-        GLuint cameraPositionGPUptr = glGetUniformLocation(shaderProgram, "cameraPos");
-        GLuint screenSizeGPUptr = glGetUniformLocation(shaderProgram, "screenSize");
-        GLuint zoomGPUptr = glGetUniformLocation(shaderProgram, "zoom");
+        glUseProgram(defaultShaderProgram);
+        
+        GLuint cameraPositionGPUptr = glGetUniformLocation(defaultShaderProgram, "cameraPos");
         glUniform2f(cameraPositionGPUptr, camera.position.x, camera.position.y);
+        
+        GLuint screenSizeGPUptr = glGetUniformLocation(defaultShaderProgram, "screenSize");
         glUniform2f(screenSizeGPUptr, currentWindowWidth, currentWindowHeight);
+        
+        GLuint zoomGPUptr = glGetUniformLocation(defaultShaderProgram, "zoom");
         glUniform1f(zoomGPUptr, camera.zoom);
 
-        glBindVertexArray(circleVAO);
-        glBindBuffer(GL_ARRAY_BUFFER, circleVBO);
-        glDrawArrays(GL_TRIANGLE_FAN, 0, paleBlueDot.vertexCount);
-        GLenum circleError;
-        while((circleError = glGetError()) != GL_NO_ERROR){
-            printf("OpenGL error: %x\n", circleError);
-        }
+        //Clear screen
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        
+        //Load default shader
+        glUseProgram(defaultShaderProgram);
+        
+        //Draw Objects
+        drawGlObject(shipVAO, shipVBO, playerShip.bodyVertexDataArray, VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat), GL_TRIANGLES, VERTS_IN_TRIANGLE);
+        drawGlObject(thrustVAO, thrustVBO, playerShip.thrustTriangleVertexDataArray, VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat), GL_TRIANGLES, VERTS_IN_TRIANGLE);
+        drawGlObject(planetVAO, planetVBO, paleBlueDot.vertexDataArray, PLANET_VERT_COUNT * FLOATS_IN_VERTEX * sizeof(GLfloat), GL_TRIANGLE_FAN, paleBlueDot.vertexCount);
+
         glfwSwapBuffers(window);
         glfwPollEvents();
 
@@ -715,9 +687,9 @@ int main(int argc, char* argv[]){
     glDeleteBuffers(1, &shipVBO);
     glDeleteVertexArrays(1, &thrustVAO);
     glDeleteBuffers(1, &thrustVBO);
-    glDeleteVertexArrays(1, &circleVAO);
-    glDeleteBuffers(1, &circleVBO);
-    glDeleteProgram(shaderProgram);
+    glDeleteVertexArrays(1, &planetVAO);
+    glDeleteBuffers(1, &planetVBO);
+    glDeleteProgram(defaultShaderProgram);
 
     glfwDestroyWindow(window);
     glfwTerminate();
