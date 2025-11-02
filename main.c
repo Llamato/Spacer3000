@@ -156,15 +156,15 @@ struct Pad{
     struct glObjectDataSet glData;
 };
 
-void printVertexArray(GLfloat* vertexDataArray, size_t vertexCount){ //Debug!!!
+void printVertexArray(GLfloat* vertexDataArray, size_t vertexCount, unsigned int stride){ //Debug!!!
     printf("x\ty\t,z\n");
     for(int currentVertex = 0; currentVertex < vertexCount; currentVertex++){
         printf(
             "%i:\t%f\t%f\t%f\n", 
             currentVertex, 
-            vertexDataArray[currentVertex * FLOATS_IN_VERTEX+VECTOR_X], 
-            vertexDataArray[currentVertex * FLOATS_IN_VERTEX+VECTOR_Y], 
-            vertexDataArray[currentVertex * FLOATS_IN_VERTEX+VECTOR_Z]
+            vertexDataArray[currentVertex * stride+VECTOR_X], 
+            vertexDataArray[currentVertex * stride+VECTOR_Y], 
+            vertexDataArray[currentVertex * stride+VECTOR_Z]
         );
     }
 }
@@ -214,9 +214,9 @@ GLfloat* combineVertexDataArrays(GLfloat* array1, size_t size1, GLfloat* array2,
     return combinedArray;
 }
 
-void scaleVertexDataArray(GLfloat* dataArray, size_t vertexCount, GLfloat scale){
+void scaleVertexDataArray(GLfloat* dataArray, size_t vertexCount, GLfloat scale, unsigned int stride){
     for(size_t i = 0; i < vertexCount; i++){
-        size_t baseIndex = i * FLOATS_IN_VERTEX;
+        size_t baseIndex = i * stride;
         dataArray[baseIndex] *=  scale;
         dataArray[baseIndex + 1] *= scale;
         dataArray[baseIndex + 2] *= scale;
@@ -259,32 +259,20 @@ GLfloat* getTrianglefanCircle(GLfloat centerX, GLfloat centerY, GLfloat radius, 
 struct glObjectDataSet getRectangle(struct Vector2 center, struct Vector2 dimensions) {
     struct glObjectDataSet rectangle;
     rectangle.vertexCount = VERTS_IN_RECTANGLE;
-    rectangle.vertexDataBufferSize = rectangle.vertexCount * FLOATS_IN_VERTEX * sizeof(GLfloat);
+    rectangle.vertexDataBufferSize = rectangle.vertexCount * FLOATS_IN_POINT * sizeof(GLfloat);
     rectangle.vertexDataBuffer = malloc(rectangle.vertexDataBufferSize); 
     rectangle.vertexDataBuffer[0] = center.x - dimensions.x / 2;
     rectangle.vertexDataBuffer[1] = center.y - dimensions.y / 2;
     rectangle.vertexDataBuffer[2] = 0.0f;
-    rectangle.vertexDataBuffer[3] = 1.0f;
-    rectangle.vertexDataBuffer[4] = 1.0f;
-    rectangle.vertexDataBuffer[5] = 1.0f;
-    rectangle.vertexDataBuffer[6] = center.x - dimensions.x / 2;
-    rectangle.vertexDataBuffer[7] = center.y + dimensions.y / 2;
+    rectangle.vertexDataBuffer[3] = center.x - dimensions.x / 2;
+    rectangle.vertexDataBuffer[4] = center.y + dimensions.y / 2;
+    rectangle.vertexDataBuffer[5] = 0.0f;
+    rectangle.vertexDataBuffer[6] = center.x + dimensions.x / 2;
+    rectangle.vertexDataBuffer[7] = center.y - dimensions.y / 2;
     rectangle.vertexDataBuffer[8] = 0.0f;
-    rectangle.vertexDataBuffer[9] = 1.0f;
-    rectangle.vertexDataBuffer[10] = 1.0f;
-    rectangle.vertexDataBuffer[11] = 1.0f;
-    rectangle.vertexDataBuffer[12] = center.x + dimensions.x / 2;
-    rectangle.vertexDataBuffer[13] = center.y - dimensions.y / 2;
-    rectangle.vertexDataBuffer[14] = 0.0f;
-    rectangle.vertexDataBuffer[15] = 1.0f;
-    rectangle.vertexDataBuffer[16] = 1.0f;
-    rectangle.vertexDataBuffer[17] = 1.0f;
-    rectangle.vertexDataBuffer[18] = center.x + dimensions.x / 2;
-    rectangle.vertexDataBuffer[19] = center.y + dimensions.y / 2;
-    rectangle.vertexDataBuffer[20] = 0.0f;
-    rectangle.vertexDataBuffer[21] = 1.0f;
-    rectangle.vertexDataBuffer[22] = 1.0f;
-    rectangle.vertexDataBuffer[23] = 1.0f;
+    rectangle.vertexDataBuffer[9] = center.x + dimensions.x / 2;
+    rectangle.vertexDataBuffer[10] = center.y + dimensions.y / 2;
+    rectangle.vertexDataBuffer[11] = 0.0f;
     rectangle.indexCount = 6;
     rectangle.vertexIndexBuffer = malloc(rectangle.indexCount * sizeof(GLuint));
     rectangle.vertexIndexBuffer[0] = 0;  // bottom-left
@@ -673,8 +661,8 @@ int main(int argc, char* argv[]){
     struct Vector2 csscPosition = add(csscCatesianPosition, paleBlueDotPosition);
     struct Vector2 csscDimensions = {paleBlueDot.radius / 10, paleBlueDot.radius / 2};
     cssc.glData = getRectangle(origin, csscDimensions);
-    rotateVertexArray(cssc.glData.vertexDataBuffer, cssc.glData.vertexCount, cssc.angle, FLOATS_IN_VERTEX);
-    translateVertexArray(cssc.glData.vertexDataBuffer, cssc.glData.vertexCount, &csscPosition, FLOATS_IN_VERTEX);
+    rotateVertexArray(cssc.glData.vertexDataBuffer, cssc.glData.vertexCount, cssc.angle, FLOATS_IN_POINT);
+    translateVertexArray(cssc.glData.vertexDataBuffer, cssc.glData.vertexCount, &csscPosition, FLOATS_IN_POINT);
 
     //Ship
     GLfloat triangleShipVertices[] = {
@@ -693,7 +681,7 @@ int main(int argc, char* argv[]){
     initialPlayerShipVelocity.y = SHIP_INITIAL_VELOCITY_Y;
     struct Spaceship playerShip;
     playerShip.bodyVertexDataArray = triangleShipVertices;
-    scaleVertexDataArray(playerShip.bodyVertexDataArray, 3, .5f);
+    scaleVertexDataArray(playerShip.bodyVertexDataArray, 3, 0.5f, FLOATS_IN_VERTEX);
     struct Vector2 playerShipVertex0Position = {playerShip.bodyVertexDataArray[VECTOR_X], playerShip.bodyVertexDataArray[VECTOR_Y]};
     struct Vector2 playerShipVertex1Position = {playerShip.bodyVertexDataArray[FLOATS_IN_VERTEX + VECTOR_X], playerShip.bodyVertexDataArray[FLOATS_IN_VERTEX + VECTOR_Y]};
     struct Vector2 playerShipVertex2Position = {playerShip.bodyVertexDataArray[2 * FLOATS_IN_VERTEX + VECTOR_X], playerShip.bodyVertexDataArray[2 * FLOATS_IN_VERTEX * VECTOR_Y]};
@@ -744,7 +732,7 @@ int main(int argc, char* argv[]){
     GLuint padFragmentShader = makeGlShader(padFragmentShaderSource,GL_FRAGMENT_SHADER);
     GLuint padShaderProgram = glCreateProgram();
     linkGlShaders(padShaderProgram, padVertexShader, padFragmentShader);
-    makeDefaultShaderObject(&cssc.glData);
+    makePadShaderObject(&cssc.glData);
     
     //Unbind the buffers after use
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -783,13 +771,13 @@ int main(int argc, char* argv[]){
         drawGlObject(&paleBlueDotDataSet);
         
         //Set pad shader parameters
-        /*glUseProgram(padShaderProgram);
+        glUseProgram(padShaderProgram);
         GLuint cameraPositionPadShaderPtr = glGetUniformLocation(padShaderProgram, "cameraPos");
         glUniform2f(cameraPositionPadShaderPtr, camera.position.x, camera.position.y);
         GLuint screenSizePadShaderPtr = glGetUniformLocation(padShaderProgram, "screenSize");
         glUniform2f(screenSizePadShaderPtr, currentWindowWidth, currentWindowHeight);
         GLuint zoomPadShaderPtr = glGetUniformLocation(padShaderProgram, "zoom");
-        glUniform1f(zoomPadShaderPtr, camera.zoom);*/
+        glUniform1f(zoomPadShaderPtr, camera.zoom);
 
         //Draw objects using pad shader
         drawGlObject(&cssc.glData);
