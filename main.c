@@ -75,7 +75,7 @@
 #define SHIP_RCS_TOURGE 5.0f
 #define SHIP_MASS 1.0f
 #define SHIP_INITIAL_POSITION_X 0.0f
-#define SHIP_INITIAL_POSITION_Y 4.0f
+#define SHIP_INITIAL_POSITION_Y 2.0f
 #define SHIP_INITIAL_VELOCITY_X 2.0f
 #define SHIP_INITIAL_VELOCITY_Y 0.0f
 #define SHIP_INITIAL_ACCELERATION_X 0.0f
@@ -391,15 +391,16 @@ struct Vector2 convertPolarToCatesian(struct Vector2 polarVector) {
     return catesianVector;
 }
 
-float degreesToRadiants(float degrees) {
+float convertDegreesToRadiants(float degrees) {
     return degrees * M_PI / 180.0f;
 }
 
-void getTriangleVertices(GLfloat* vertexDataArray, GLfloat size){
+
+void updateTriangleVertices(GLfloat* vertexDataArray){
     GLfloat triangleShipVertices[] = {
-        -0.25f * size, -0.192450f * size, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f,
-        0.25f * size, -0.192450f * size, 0.0f,0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f,
-        0.0f * size, 0.384900f * size, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f
+        -0.25f, -0.144f, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f,    // bottom-left
+        -0.25f, 0.144f, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f,   // top-left  
+        0.25f, 0.0f, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f,  // tip-right
     };
 
     for(size_t currentVertex = 0; currentVertex < VERTS_IN_TRIANGLE; currentVertex++){
@@ -410,6 +411,14 @@ void getTriangleVertices(GLfloat* vertexDataArray, GLfloat size){
         vertexDataArray[currentVertex * FLOATS_IN_VERTEX + COLOR_G] = triangleShipVertices[currentVertex * FLOATS_IN_VERTEX + COLOR_G];
         vertexDataArray[currentVertex * FLOATS_IN_VERTEX + COLOR_B] = triangleShipVertices[currentVertex * FLOATS_IN_VERTEX + COLOR_B];
     }
+}
+
+GLfloat* getTriangleVertices(struct Vector2 position, GLfloat orientation){
+    GLfloat* vertexDataArray = malloc(VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat));
+    updateTriangleVertices(vertexDataArray);
+    rotateVertexArray(vertexDataArray, VERTS_IN_TRIANGLE, orientation, FLOATS_IN_VERTEX);
+    translateVertexArray(vertexDataArray, VERTS_IN_TRIANGLE, &position, FLOATS_IN_VERTEX);
+    return vertexDataArray;
 }
 
 void updateCamera(struct Camera *cam, struct Spaceship *ship, float deltaTime){
@@ -490,7 +499,7 @@ void applyGravity(struct Planet *planet, struct Spaceship *ship, double deltaTim
 }
 
 void applyShipPositionAndOrientation(struct Spaceship *ship){
-    getTriangleVertices(ship->bodyVertexDataArray, 1.0f);
+    updateTriangleVertices(ship->bodyVertexDataArray);
     rotateVertexArray(ship->bodyVertexDataArray, VERTS_IN_TRIANGLE, ship->orientation, FLOATS_IN_VERTEX);
     translateVertexArray(ship->bodyVertexDataArray, VERTS_IN_TRIANGLE, &ship->position, FLOATS_IN_VERTEX);
 }
@@ -665,34 +674,27 @@ int main(int argc, char* argv[]){
 
     //Pad
     struct Pad cssc;
-    cssc.angle = degreesToRadiants(90.0f);
+    cssc.angle = convertDegreesToRadiants(90.0f);
     cssc.parentPlanet = &paleBlueDot;
     struct Vector2 origin = {0.0f, 0.0f};
     struct Vector2 csscPolarPosition = {cssc.parentPlanet->radius, cssc.angle};
     struct Vector2 csscCatesianPosition = convertPolarToCatesian(csscPolarPosition);
     struct Vector2 csscPosition = add(csscCatesianPosition, paleBlueDotPosition);
-    struct Vector2 csscDimensions = {paleBlueDot.radius / 10, paleBlueDot.radius / 2};
+    struct Vector2 csscDimensions = {paleBlueDot.radius / 10, paleBlueDot.radius / 1.667};
     cssc.glData = getRectangle(origin, csscDimensions);
     rotateVertexArray(cssc.glData.vertexDataBuffer, cssc.glData.vertexCount, cssc.angle, FLOATS_IN_POINT);
     translateVertexArray(cssc.glData.vertexDataBuffer, cssc.glData.vertexCount, &csscPosition, FLOATS_IN_POINT);
 
     //Ship
-    GLfloat triangleShipVertices[] = {
-        //Triangle 1
-        -0.25f-0.5f, -0.25f * 1.732051f / 3, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f,
-        0.25f-0.5f, -0.25f * 1.732051f / 3, 0.0f,0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f,
-        0.0f-0.5f, 0.25f * 1.732051f, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f
-    };
-    convertScreenSpaceToLocal(triangleShipVertices, VERTS_IN_TRIANGLE, FLOATS_IN_POINT);
-    struct Vector2 INITIALPlayerShipPosition = {SHIP_INITIAL_POSITION_X, SHIP_INITIAL_POSITION_Y};
-    translateVertexArray(triangleShipVertices, VERTS_IN_TRIANGLE,&INITIALPlayerShipPosition, FLOATS_IN_VERTEX);
-    struct Vector2 initialMovementDirection = getPerpendicularVector(getDirection(&INITIALPlayerShipPosition, &paleBlueDotPosition));
-    GLfloat initialMovementMagnitude = sqrtf(GRAVITATIONAL_CONSTANT * PLANET_MASS / getDistance(&INITIALPlayerShipPosition, &paleBlueDotPosition));
+    struct Spaceship playerShip;
+    struct Vector2 initialPlayerShipPosition = {SHIP_INITIAL_POSITION_X, SHIP_INITIAL_POSITION_Y};
+    playerShip.bodyVertexDataArray = getTriangleVertices(initialPlayerShipPosition, 0.0f);
+    translateVertexArray(playerShip.bodyVertexDataArray, VERTS_IN_TRIANGLE,&initialPlayerShipPosition, FLOATS_IN_VERTEX);
+    struct Vector2 initialMovementDirection = getPerpendicularVector(getDirection(&initialPlayerShipPosition, &paleBlueDotPosition));
+    GLfloat initialMovementMagnitude = sqrtf(GRAVITATIONAL_CONSTANT * PLANET_MASS / getDistance(&initialPlayerShipPosition, &paleBlueDotPosition));
     struct Vector2 initialPlayerShipVelocity;
     initialPlayerShipVelocity.x = SHIP_INITIAL_VELOCITY_X;
     initialPlayerShipVelocity.y = SHIP_INITIAL_VELOCITY_Y;
-    struct Spaceship playerShip;
-    playerShip.bodyVertexDataArray = triangleShipVertices;
     scaleVertexDataArray(playerShip.bodyVertexDataArray, 3, 0.5f, FLOATS_IN_VERTEX);
     struct Vector2 playerShipVertex0Position = {playerShip.bodyVertexDataArray[VECTOR_X], playerShip.bodyVertexDataArray[VECTOR_Y]};
     struct Vector2 playerShipVertex1Position = {playerShip.bodyVertexDataArray[FLOATS_IN_VERTEX + VECTOR_X], playerShip.bodyVertexDataArray[FLOATS_IN_VERTEX + VECTOR_Y]};
