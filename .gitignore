@@ -1,5 +1,7 @@
 buildandrun.sh
 main.o
+compile_commands.json
+.clangd
 build/spacer3000
 build/Debug/main.o
 build/spacer3000
