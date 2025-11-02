@@ -41,11 +41,15 @@
 #define COLOR_B 5
 #define FLOATS_IN_VERTEX 6
 
-//Triangles
+//Triangle
 #define VERTS_IN_TRIANGLE 3
 #define TRIANGLE_VERTEX_LEFT 0
 #define TRIANGLE_VERTEX_MIDDLE 2
 #define TRIANGLE_VERTEX_RIGHT 1
+
+//Rectangle
+#define FLOATS_IN_POINT 3
+#define VERTS_IN_RECTANGLE 4
 
 //World Definitions
 #define GRAVITATIONAL_CONSTANT 0.8f
@@ -81,6 +85,27 @@
 #define THRUST_TRIANGLE_BASE_WIDTH 0.1f
 #define THRUST_TRIANGLE_TIP_EXTEND 0.1f
 
+struct glObjectDataSet{
+    //Data
+    GLfloat* vertexDataBuffer;
+    GLuint* vertexIndexBuffer;
+
+    //VAO
+    GLuint vao;
+
+    //VBO
+    GLuint vbo;
+    size_t vertexCount;
+    size_t vertexDataBufferSize;
+
+    //IBO
+    GLuint ibo;
+    size_t indexCount; 
+
+    //Draw settings
+    GLint primitiveType;
+};
+
 struct Vector2{
     GLfloat x;
     GLfloat y;
@@ -92,7 +117,7 @@ struct Color{
     GLfloat blue;
 };
 
-struct Camera {
+struct Camera{
     struct Vector2 position;
     struct Vector2 fieldOfView;
     float zoom;
@@ -126,13 +151,9 @@ struct Planet{
 };
 
 struct Pad{
-    //Physical Data
     float angle;
     struct Planet *parentPlanet;
-    
-    //Structural Data
-    GLfloat *vertexDataArray;
-    size_t vertexCount;
+    struct glObjectDataSet glData;
 };
 
 void printVertexArray(GLfloat* vertexDataArray, size_t vertexCount){ //Debug!!!
@@ -172,6 +193,13 @@ char* readShaderFile(const char* filename){
 
 GLfloat gabsf(GLfloat value){
     return value < 0.0f ? value * -1.0f : value;
+}
+
+struct Vector2 add(struct Vector2 vec1, struct Vector2 vec2) {
+    struct Vector2 vecR;
+    vecR.x = vec1.x + vec2.x;
+    vecR.y = vec1.y + vec2.y;
+    return vecR;
 }
 
 GLfloat* combineVertexDataArrays(GLfloat* array1, size_t size1, GLfloat* array2, size_t size2){
@@ -225,8 +253,48 @@ GLfloat* getTrianglefanCircle(GLfloat centerX, GLfloat centerY, GLfloat radius, 
       circleData[currentIndex+4] = colorG;
       circleData[currentIndex+5] = colorB;
     }
-    
     return circleData;
+}
+
+struct glObjectDataSet getRectangle(struct Vector2 center, struct Vector2 dimensions) {
+    struct glObjectDataSet rectangle;
+    rectangle.vertexCount = VERTS_IN_RECTANGLE;
+    rectangle.vertexDataBufferSize = rectangle.vertexCount * FLOATS_IN_VERTEX * sizeof(GLfloat);
+    rectangle.vertexDataBuffer = malloc(rectangle.vertexDataBufferSize); 
+    rectangle.vertexDataBuffer[0] = center.x - dimensions.x / 2;
+    rectangle.vertexDataBuffer[1] = center.y - dimensions.y / 2;
+    rectangle.vertexDataBuffer[2] = 0.0f;
+    rectangle.vertexDataBuffer[3] = 1.0f;
+    rectangle.vertexDataBuffer[4] = 1.0f;
+    rectangle.vertexDataBuffer[5] = 1.0f;
+    rectangle.vertexDataBuffer[6] = center.x - dimensions.x / 2;
+    rectangle.vertexDataBuffer[7] = center.y + dimensions.y / 2;
+    rectangle.vertexDataBuffer[8] = 0.0f;
+    rectangle.vertexDataBuffer[9] = 1.0f;
+    rectangle.vertexDataBuffer[10] = 1.0f;
+    rectangle.vertexDataBuffer[11] = 1.0f;
+    rectangle.vertexDataBuffer[12] = center.x + dimensions.x / 2;
+    rectangle.vertexDataBuffer[13] = center.y - dimensions.y / 2;
+    rectangle.vertexDataBuffer[14] = 0.0f;
+    rectangle.vertexDataBuffer[15] = 1.0f;
+    rectangle.vertexDataBuffer[16] = 1.0f;
+    rectangle.vertexDataBuffer[17] = 1.0f;
+    rectangle.vertexDataBuffer[18] = center.x + dimensions.x / 2;
+    rectangle.vertexDataBuffer[19] = center.y + dimensions.y / 2;
+    rectangle.vertexDataBuffer[20] = 0.0f;
+    rectangle.vertexDataBuffer[21] = 1.0f;
+    rectangle.vertexDataBuffer[22] = 1.0f;
+    rectangle.vertexDataBuffer[23] = 1.0f;
+    rectangle.indexCount = 6;
+    rectangle.vertexIndexBuffer = malloc(rectangle.indexCount * sizeof(GLuint));
+    rectangle.vertexIndexBuffer[0] = 0;  // bottom-left
+    rectangle.vertexIndexBuffer[1] = 1;  // top-left  
+    rectangle.vertexIndexBuffer[2] = 2;  // bottom-right
+    rectangle.vertexIndexBuffer[3] = 1;  // top-left
+    rectangle.vertexIndexBuffer[4] = 3;  // top-right
+    rectangle.vertexIndexBuffer[5] = 2;  // bottom-right
+    rectangle.primitiveType = GL_TRIANGLES;
+    return rectangle;
 }
 
 GLfloat getMagnitude(struct Vector2 *vector){
@@ -286,25 +354,25 @@ GLfloat gclamp(GLfloat value, GLfloat max, GLfloat min){
     return value;
 }
 
-void translateVertexArray(GLfloat *vertexDataArray, size_t vertexCount, struct Vector2 *translationVector){
+void translateVertexArray(GLfloat *vertexDataArray, size_t vertexCount, struct Vector2 *translationVector, unsigned int stride){
     for(size_t currentVertex = 0; currentVertex < vertexCount; currentVertex++){
-        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + VECTOR_X] += translationVector->x;
-        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + VECTOR_Y] += translationVector->y;
+        vertexDataArray[currentVertex * stride + VECTOR_X] += translationVector->x;
+        vertexDataArray[currentVertex * stride + VECTOR_Y] += translationVector->y;
     }
 }
 
-void translateOrigin(GLfloat *vertexDataArray, size_t vertexCount, struct Vector2 *from, struct Vector2 *to){
+void translateOrigin(GLfloat *vertexDataArray, size_t vertexCount, struct Vector2 *from, struct Vector2 *to, unsigned int stride){
     struct Vector2 offset;
     offset.x = from->x - to->x;
     offset.y = from->y - to->y;
-    for(size_t currentVertexStartIndex = 0; currentVertexStartIndex < vertexCount * FLOATS_IN_VERTEX; currentVertexStartIndex += FLOATS_IN_VERTEX){
+    for(size_t currentVertexStartIndex = 0; currentVertexStartIndex < vertexCount * stride; currentVertexStartIndex += stride){
         vertexDataArray[currentVertexStartIndex + VECTOR_X] += offset.x;
         vertexDataArray[currentVertexStartIndex + VECTOR_Y] += offset.y;
     }
 }
 
-void rotateVertexArray(GLfloat* vertexArray, size_t vertexCount, float rotationAngle){
-    for(size_t currentVertexStartIndex = 0; currentVertexStartIndex < vertexCount * FLOATS_IN_VERTEX; currentVertexStartIndex += FLOATS_IN_VERTEX){
+void rotateVertexArray(GLfloat* vertexArray, size_t vertexCount, float rotationAngle, unsigned int stride){
+    for(size_t currentVertexStartIndex = 0; currentVertexStartIndex < vertexCount * stride; currentVertexStartIndex += stride){
         GLfloat newX = vertexArray[currentVertexStartIndex] * cosf(rotationAngle) - vertexArray[currentVertexStartIndex +1] * sinf(rotationAngle);
         GLfloat newY = vertexArray[currentVertexStartIndex] * sinf(rotationAngle) + vertexArray[currentVertexStartIndex +1] * cosf(rotationAngle); 
         vertexArray[currentVertexStartIndex] = newX;
@@ -312,22 +380,32 @@ void rotateVertexArray(GLfloat* vertexArray, size_t vertexCount, float rotationA
     }
 }
 
-void convertScreenSpaceToLocal(GLfloat* vertexArray, size_t vertexCount){
+void convertScreenSpaceToLocal(GLfloat* vertexArray, size_t vertexCount, unsigned int stride){
     GLfloat xSum = 0;
     GLfloat ySum = 0;
     for(size_t currentVertex = 0; currentVertex < vertexCount; currentVertex++){
-        xSum += vertexArray[currentVertex * FLOATS_IN_VERTEX + VECTOR_X];
-        ySum += vertexArray[currentVertex * FLOATS_IN_VERTEX + VECTOR_Y];
+        xSum += vertexArray[currentVertex * stride + VECTOR_X];
+        ySum += vertexArray[currentVertex * stride + VECTOR_Y];
     }
     struct Vector2 localCenter;
     localCenter.x = xSum / vertexCount;
     localCenter.y = ySum / vertexCount;
     for(size_t currentVertex = 0; currentVertex < vertexCount; currentVertex++){
-        vertexArray[currentVertex * FLOATS_IN_VERTEX + VECTOR_X] -= localCenter.x;
-        vertexArray[currentVertex * FLOATS_IN_VERTEX + VECTOR_Y] -= localCenter.y;
+        vertexArray[currentVertex * stride + VECTOR_X] -= localCenter.x;
+        vertexArray[currentVertex * stride + VECTOR_Y] -= localCenter.y;
     }
 }
 
+struct Vector2 convertPolarToCatesian(struct Vector2 polarVector) {
+    struct Vector2 catesianVector;
+    catesianVector.x = polarVector.x * cosf(polarVector.y);
+    catesianVector.y = polarVector.x * sinf(polarVector.y);
+    return catesianVector;
+}
+
+float degreesToRadiants(float degrees) {
+    return degrees * M_PI / 180.0f;
+}
 
 void getTriangleVertices(GLfloat* vertexDataArray, GLfloat size){
     GLfloat triangleShipVertices[] = {
@@ -353,8 +431,8 @@ void updateCamera(struct Camera *cam, struct Spaceship *ship, float deltaTime){
 
 
 void updateShipPosition(struct Spaceship *ship, double deltaTime){
-    ship->acceleration.x += ship->thrust / ship->mass * cos(ship->orientation) * deltaTime;
-    ship->acceleration.y += ship->thrust / ship->mass * sin(ship->orientation) * deltaTime;
+    ship->acceleration.x += ship->thrust / ship->mass * cosf(ship->orientation) * deltaTime;
+    ship->acceleration.y += ship->thrust / ship->mass * sinf(ship->orientation) * deltaTime;
     ship->velocity.x += ship->acceleration.x * deltaTime;
     ship->velocity.y += ship->acceleration.y * deltaTime;
     ship->position.x += ship->velocity.x * deltaTime; 
@@ -425,35 +503,41 @@ void applyGravity(struct Planet *planet, struct Spaceship *ship, double deltaTim
 
 void applyShipPositionAndOrientation(struct Spaceship *ship){
     getTriangleVertices(ship->bodyVertexDataArray, 1.0f);
-    rotateVertexArray(ship->bodyVertexDataArray, VERTS_IN_TRIANGLE, ship->orientation);
-    translateVertexArray(ship->bodyVertexDataArray, VERTS_IN_TRIANGLE, &ship->position);
-}
-
-//Event handlers
-int currentWindowWidth = PLAYFIELD_WIDTH;
-int currentWindowHeight = PLAYFIELD_HEIGHT;
-void windowResizeCallback(GLFWwindow* window, int width, int height){
-    glViewport(0, 0, width, height);
-    currentWindowWidth = width;
-    currentWindowHeight = height;
-}
-
-int windowIsFocused = 1;
-void windowFocusCallback(GLFWwindow* window, int focused){
-    windowIsFocused = focused;
+    rotateVertexArray(ship->bodyVertexDataArray, VERTS_IN_TRIANGLE, ship->orientation, FLOATS_IN_VERTEX);
+    translateVertexArray(ship->bodyVertexDataArray, VERTS_IN_TRIANGLE, &ship->position, FLOATS_IN_VERTEX);
 }
 
 //OpenGL wrapper functions
-void makeGlObject(GLuint* vao, GLuint* vbo, GLfloat* bufferData, size_t bufferSize) {
-    glGenVertexArrays(1, vao);
-    glGenBuffers(1, vbo);
-    glBindVertexArray(*vao);
-    glBindBuffer(GL_ARRAY_BUFFER, *vbo);
-    glBufferData(GL_ARRAY_BUFFER, bufferSize, bufferData, GL_DYNAMIC_DRAW);
+void makeGlObject(struct glObjectDataSet *vds) {
+    glGenVertexArrays(1, &vds->vao);
+    glGenBuffers(1, &vds->vbo);
+    glBindVertexArray(vds->vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vds->vbo);
+    glBufferData(GL_ARRAY_BUFFER, vds->vertexDataBufferSize, vds->vertexDataBuffer, GL_DYNAMIC_DRAW);
+    if(vds->indexCount > 0){
+        printf("Binding Element Array buffer for pad");
+        glGenBuffers(1, &vds->ibo);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vds->ibo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, vds->indexCount * sizeof(GLuint), vds->vertexIndexBuffer, GL_STATIC_DRAW);
+    }
+    GLenum error;
+    while((error = glGetError()) != GL_NO_ERROR){
+        printf("OpenGL error during buffer binding: %x\n", error);
+    }
+}
+
+void makeDefaultShaderObject(struct glObjectDataSet *vds) {
+    makeGlObject(vds);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*) 0);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_TRUE, 6 * sizeof(float), (void*) (3*sizeof(float)));
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
+}
+
+void makePadShaderObject(struct glObjectDataSet *vds) {
+    makeGlObject(vds);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*) 0);
+    glEnableVertexAttribArray(0);
 }
 
 GLuint makeGlShader(const char* source, GLuint type) {
@@ -470,15 +554,62 @@ GLuint makeGlShader(const char* source, GLuint type) {
     return shader;
 }
 
-void drawGlObject(GLuint vao, GLuint vbo, GLfloat* bufferData, size_t bufferSize, GLuint perimitiveType, GLuint vertexCount) {
-    glBindVertexArray(vao);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, bufferSize, bufferData);
-    glDrawArrays(perimitiveType, 0, vertexCount);
-    GLenum shipError;
-    while((shipError = glGetError()) != GL_NO_ERROR){
-        printf("OpenGL error: %x\n", shipError);
+void linkGlShaders(GLuint shaderProgram, GLuint vertexShader, GLuint fragmentShader) {
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragmentShader);
+    glLinkProgram(shaderProgram);
+    GLuint success;
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+    if (!success) {
+        char infoLog[ERROR_MESSAGE_MAX_LENGTH];
+        glGetProgramInfoLog(shaderProgram, ERROR_MESSAGE_MAX_LENGTH, NULL, infoLog);
+        printf("Shader program linking failed: %s\n", infoLog);
     }
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+}
+
+void drawGlObject(struct glObjectDataSet *ods) {
+    glBindVertexArray(ods->vao);
+    glBindBuffer(GL_ARRAY_BUFFER, ods->vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, ods->vertexDataBufferSize, ods->vertexDataBuffer);
+    if(ods->indexCount > 0) {
+        glDrawElements(ods->primitiveType, ods->indexCount, GL_UNSIGNED_INT, 0);
+    }else{
+        glDrawArrays(ods->primitiveType, 0, ods->vertexCount);
+    }
+    GLenum error;
+    while((error = glGetError()) != GL_NO_ERROR){
+        printf("OpenGL error: %x\n", error);
+    }
+}
+
+struct glObjectDataSet initDefaultGlObject(void) {
+    struct glObjectDataSet ods;
+    memset(&ods, 0, sizeof(struct glObjectDataSet));
+    return ods;
+}
+
+void deleteGlObject(struct glObjectDataSet *ods) {
+    /*free(ods->vertexDataBuffer);
+    free(ods->vertexIndexBuffer);*/
+    glDeleteVertexArrays(1, &ods->vao);
+    glDeleteBuffers(1, &ods->vbo);
+    memset(ods, 0, sizeof(struct glObjectDataSet));
+}
+
+//Event handlers
+int currentWindowWidth = PLAYFIELD_WIDTH;
+int currentWindowHeight = PLAYFIELD_HEIGHT;
+void windowResizeCallback(GLFWwindow* window, int width, int height){
+    glViewport(0, 0, width, height);
+    currentWindowWidth = width;
+    currentWindowHeight = height;
+}
+
+int windowIsFocused = 1;
+void windowFocusCallback(GLFWwindow* window, int focused){
+    windowIsFocused = focused;
 }
 
 //Game state variables
@@ -532,16 +663,29 @@ int main(int argc, char* argv[]){
     paleBlueDot.vertexDataArray = getTrianglefanCircle(paleBlueDotPosition.x, paleBlueDotPosition.y, paleBlueDot.radius, PLANET_POLY_COUNT, paleBlueColor.red, paleBlueColor.green, paleBlueColor.blue);
     paleBlueDot.vertexCount = (PLANET_POLY_COUNT + 2);
 
+    //Pad
+    struct Pad cssc;
+    cssc.angle = degreesToRadiants(90.0f);
+    cssc.parentPlanet = &paleBlueDot;
+    struct Vector2 origin = {0.0f, 0.0f};
+    struct Vector2 csscPolarPosition = {cssc.parentPlanet->radius, cssc.angle};
+    struct Vector2 csscCatesianPosition = convertPolarToCatesian(csscPolarPosition);
+    struct Vector2 csscPosition = add(csscCatesianPosition, paleBlueDotPosition);
+    struct Vector2 csscDimensions = {paleBlueDot.radius / 10, paleBlueDot.radius / 2};
+    cssc.glData = getRectangle(origin, csscDimensions);
+    rotateVertexArray(cssc.glData.vertexDataBuffer, cssc.glData.vertexCount, cssc.angle, FLOATS_IN_VERTEX);
+    translateVertexArray(cssc.glData.vertexDataBuffer, cssc.glData.vertexCount, &csscPosition, FLOATS_IN_VERTEX);
+
     //Ship
     GLfloat triangleShipVertices[] = {
         //Triangle 1
         -0.25f-0.5f, -0.25f * 1.732051f / 3, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f,
         0.25f-0.5f, -0.25f * 1.732051f / 3, 0.0f,0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f,
-        0.0f-0.5f, 0.25f * 1.732051f , 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f
+        0.0f-0.5f, 0.25f * 1.732051f, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f
     };
-    convertScreenSpaceToLocal(triangleShipVertices, VERTS_IN_TRIANGLE);
+    convertScreenSpaceToLocal(triangleShipVertices, VERTS_IN_TRIANGLE, FLOATS_IN_POINT);
     struct Vector2 INITIALPlayerShipPosition = {SHIP_INITIAL_POSITION_X, SHIP_INITIAL_POSITION_Y};
-    translateVertexArray(triangleShipVertices, VERTS_IN_TRIANGLE,&INITIALPlayerShipPosition);
+    translateVertexArray(triangleShipVertices, VERTS_IN_TRIANGLE,&INITIALPlayerShipPosition, FLOATS_IN_VERTEX);
     struct Vector2 initialMovementDirection = getPerpendicularVector(getDirection(&INITIALPlayerShipPosition, &paleBlueDotPosition));
     GLfloat initialMovementMagnitude = sqrtf(GRAVITATIONAL_CONSTANT * PLANET_MASS / getDistance(&INITIALPlayerShipPosition, &paleBlueDotPosition));
     struct Vector2 initialPlayerShipVelocity;
@@ -567,34 +711,46 @@ int main(int argc, char* argv[]){
     updateThrustTriangle(thrustTriangleVertices, &playerShip, &thurstTriangleColor);
     playerShip.thrustTriangleVertexDataArray = thrustTriangleVertices;
 
-    //Setup Shaders
+    //Setup default shader and assign to objects
     const char* defaultVertexShaderSource = readShaderFile("shaders/default.vert");
-    GLuint vertexShader = makeGlShader(defaultVertexShaderSource, GL_VERTEX_SHADER);
+    GLuint defaultVertexShader = makeGlShader(defaultVertexShaderSource, GL_VERTEX_SHADER);
     const char* defaultFragmentShaderSource = readShaderFile("shaders/default.frag");
-    GLuint fragmentShader = makeGlShader(defaultFragmentShaderSource, GL_FRAGMENT_SHADER);
+    GLuint defaultFragmentShader = makeGlShader(defaultFragmentShaderSource, GL_FRAGMENT_SHADER);
     GLuint defaultShaderProgram = glCreateProgram();
-    glAttachShader(defaultShaderProgram, vertexShader);
-    glAttachShader(defaultShaderProgram, fragmentShader);
-    glLinkProgram(defaultShaderProgram);
-    GLuint success;
-    glGetProgramiv(defaultShaderProgram, GL_LINK_STATUS, &success);
-    if (!success) {
-        char infoLog[ERROR_MESSAGE_MAX_LENGTH];
-        glGetProgramInfoLog(defaultShaderProgram, ERROR_MESSAGE_MAX_LENGTH, NULL, infoLog);
-        printf("Shader program linking failed: %s\n", infoLog);
-    }
-
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-
-    GLuint shipVAO, thrustVAO, planetVAO, shipVBO, thrustVBO, planetVBO, padVAO, padVBO;
-    makeGlObject(&shipVAO, &shipVBO, playerShip.bodyVertexDataArray, VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat));
-    makeGlObject(&thrustVAO, &thrustVBO, playerShip.thrustTriangleVertexDataArray, VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat));
-    makeGlObject(&planetVAO, &planetVBO, paleBlueDot.vertexDataArray,  paleBlueDot.vertexCount * FLOATS_IN_VERTEX * sizeof(GLfloat));
+    linkGlShaders(defaultShaderProgram, defaultVertexShader, defaultFragmentShader);
+    struct glObjectDataSet playerShipDataSet = initDefaultGlObject();
+    playerShipDataSet.vertexDataBuffer = playerShip.bodyVertexDataArray;
+    playerShipDataSet.vertexCount = VERTS_IN_TRIANGLE;
+    playerShipDataSet.vertexDataBufferSize = playerShipDataSet.vertexCount * FLOATS_IN_VERTEX * sizeof(GLfloat);
+    playerShipDataSet.primitiveType = GL_TRIANGLES;
+    makeDefaultShaderObject(&playerShipDataSet);
+    struct glObjectDataSet thrustIndicatorDataSet = initDefaultGlObject();
+    thrustIndicatorDataSet.vertexDataBuffer = playerShip.thrustTriangleVertexDataArray;
+    thrustIndicatorDataSet.vertexCount = VERTS_IN_TRIANGLE;
+    thrustIndicatorDataSet.vertexDataBufferSize = thrustIndicatorDataSet.vertexCount * FLOATS_IN_VERTEX * sizeof(GLfloat);
+    thrustIndicatorDataSet.primitiveType = GL_TRIANGLES;
+    makeDefaultShaderObject(&thrustIndicatorDataSet);
+    struct glObjectDataSet paleBlueDotDataSet = initDefaultGlObject();
+    paleBlueDotDataSet.vertexDataBuffer = paleBlueDot.vertexDataArray;
+    paleBlueDotDataSet.vertexCount = paleBlueDot.vertexCount;
+    paleBlueDotDataSet.vertexDataBufferSize = paleBlueDot.vertexCount * FLOATS_IN_VERTEX * sizeof(GLfloat);
+    paleBlueDotDataSet.primitiveType = GL_TRIANGLE_FAN;
+    makeDefaultShaderObject(&paleBlueDotDataSet);
     
+    //Setup pad shader and assign to objects
+    const char* padVertexShaderSource = readShaderFile("shaders/pad.vert");
+    GLuint padVertexShader = makeGlShader(padVertexShaderSource, GL_VERTEX_SHADER);
+    const char* padFragmentShaderSource = readShaderFile("shaders/pad.frag");
+    GLuint padFragmentShader = makeGlShader(padFragmentShaderSource,GL_FRAGMENT_SHADER);
+    GLuint padShaderProgram = glCreateProgram();
+    linkGlShaders(padShaderProgram, padVertexShader, padFragmentShader);
+    makeDefaultShaderObject(&cssc.glData);
+    
+    //Unbind the buffers after use
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
+    //Clear screen then enter game loop
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glfwSwapBuffers(window);
@@ -608,30 +764,35 @@ int main(int argc, char* argv[]){
 
         gameLoopStartTime = glfwGetTime(); //Keep Time
 
-        //Setup the vertex shader
-        glUseProgram(defaultShaderProgram);
-        
-        GLuint cameraPositionGPUptr = glGetUniformLocation(defaultShaderProgram, "cameraPos");
-        glUniform2f(cameraPositionGPUptr, camera.position.x, camera.position.y);
-        
-        GLuint screenSizeGPUptr = glGetUniformLocation(defaultShaderProgram, "screenSize");
-        glUniform2f(screenSizeGPUptr, currentWindowWidth, currentWindowHeight);
-        
-        GLuint zoomGPUptr = glGetUniformLocation(defaultShaderProgram, "zoom");
-        glUniform1f(zoomGPUptr, camera.zoom);
-
         //Clear screen
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
-        
-        //Load default shader
-        glUseProgram(defaultShaderProgram);
-        
-        //Draw Objects
-        drawGlObject(shipVAO, shipVBO, playerShip.bodyVertexDataArray, VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat), GL_TRIANGLES, VERTS_IN_TRIANGLE);
-        drawGlObject(thrustVAO, thrustVBO, playerShip.thrustTriangleVertexDataArray, VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat), GL_TRIANGLES, VERTS_IN_TRIANGLE);
-        drawGlObject(planetVAO, planetVBO, paleBlueDot.vertexDataArray, PLANET_VERT_COUNT * FLOATS_IN_VERTEX * sizeof(GLfloat), GL_TRIANGLE_FAN, paleBlueDot.vertexCount);
 
+        //Set default shader parameters
+        glUseProgram(defaultShaderProgram);
+        GLuint cameraPositionDefaultShaderPtr = glGetUniformLocation(defaultShaderProgram, "cameraPos");
+        glUniform2f(cameraPositionDefaultShaderPtr, camera.position.x, camera.position.y);
+        GLuint screenSizeDefaultShaderPtr = glGetUniformLocation(defaultShaderProgram, "screenSize");
+        glUniform2f(screenSizeDefaultShaderPtr, currentWindowWidth, currentWindowHeight);
+        GLuint zoomDefaultShaderPtr = glGetUniformLocation(defaultShaderProgram, "zoom");
+        glUniform1f(zoomDefaultShaderPtr, camera.zoom);
+        
+        //Draw objects using default shaders
+        drawGlObject(&playerShipDataSet);
+        drawGlObject(&thrustIndicatorDataSet);
+        drawGlObject(&paleBlueDotDataSet);
+        
+        //Set pad shader parameters
+        /*glUseProgram(padShaderProgram);
+        GLuint cameraPositionPadShaderPtr = glGetUniformLocation(padShaderProgram, "cameraPos");
+        glUniform2f(cameraPositionPadShaderPtr, camera.position.x, camera.position.y);
+        GLuint screenSizePadShaderPtr = glGetUniformLocation(padShaderProgram, "screenSize");
+        glUniform2f(screenSizePadShaderPtr, currentWindowWidth, currentWindowHeight);
+        GLuint zoomPadShaderPtr = glGetUniformLocation(padShaderProgram, "zoom");
+        glUniform1f(zoomPadShaderPtr, camera.zoom);*/
+
+        //Draw objects using pad shader
+        drawGlObject(&cssc.glData);
         glfwSwapBuffers(window);
         glfwPollEvents();
 
@@ -644,7 +805,6 @@ int main(int argc, char* argv[]){
         updateCamera(&camera, &playerShip, frameTime);
         
         if(timeAccumulator > PHYSICS_TIME_DELTA){
-
             //Do input handling here
             if(glfwGetKey(window, INCREASE_THRUST_KEY)){
                 updateShipThrust(&playerShip, SHIP_ENGINE_MAX_THRUST, PHYSICS_TIME_DELTA);
@@ -678,18 +838,17 @@ int main(int argc, char* argv[]){
             updateThrustTriangle(thrustTriangleVertices, &playerShip, &thurstTriangleColor);
             applyGravity(&paleBlueDot, &playerShip, PHYSICS_TIME_DELTA);
 
-            timeAccumulator = 0;
+            timeAccumulator = 0; //Keep time
         }
     }
 
-    glDeleteVertexArrays(1, &shipVAO);
-    glDeleteBuffers(1, &shipVBO);
-    glDeleteVertexArrays(1, &thrustVAO);
-    glDeleteBuffers(1, &thrustVBO);
-    glDeleteVertexArrays(1, &planetVAO);
-    glDeleteBuffers(1, &planetVBO);
+    //Clean up shaders
+    deleteGlObject(&playerShipDataSet);
+    deleteGlObject(&thrustIndicatorDataSet);
+    deleteGlObject(&paleBlueDotDataSet);
     glDeleteProgram(defaultShaderProgram);
-
+    deleteGlObject(&cssc.glData);
+    glDeleteProgram(padShaderProgram);
     glfwDestroyWindow(window);
     glfwTerminate();
     return window == NULL;
