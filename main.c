@@ -53,7 +53,7 @@
 
 //World Definitions
 #define GRAVITATIONAL_CONSTANT 0.8f
-#define PHYSICS_TIME_DELTA 1.0f/240.0f
+#define PHYSICS_TIME_DELTA 1.0f/320.0f
 #define WORLD_BACKGROUND_COLOR_R 0.0f
 #define WORLD_BACKGROUND_COLOR_G 0.0f
 #define WORLD_BACKGROUND_COLOR_B 0.0f
@@ -600,6 +600,18 @@ void windowFocusCallback(GLFWwindow* window, int focused){
     windowIsFocused = focused;
 }
 
+void debugFrame(struct Spaceship *playerShip){
+    printf("=== FRAME DEBUG ===\n");
+    printf("Ship position: (%.3f, %.3f)\n", playerShip->position.x, playerShip->position.y);
+    printf("Ship vertices:\n");
+    for(int i = 0; i < VERTS_IN_TRIANGLE; i++) {
+        printf("  V%d: (%.3f, %.3f, %.3f)\n", i,
+            playerShip->bodyVertexDataArray[i * FLOATS_IN_VERTEX + VECTOR_X],
+            playerShip->bodyVertexDataArray[i * FLOATS_IN_VERTEX + VECTOR_Y],
+            playerShip->bodyVertexDataArray[i * FLOATS_IN_VERTEX + VECTOR_Z]);
+    }
+}
+
 //Game state variables
 int main(int argc, char* argv[]){
     int glfwstatus = glfwInit();
@@ -788,10 +800,6 @@ int main(int argc, char* argv[]){
         gameLoopEndTime = glfwGetTime();
         frameTime = gameLoopEndTime - gameLoopStartTime;
         timeAccumulator += frameTime;
-
-        //All non physics stuff goes here
-        updateCamera(&camera, &playerShip, frameTime);
-        
         if(timeAccumulator > PHYSICS_TIME_DELTA){
             //Do input handling here
             if(glfwGetKey(window, INCREASE_THRUST_KEY)){
@@ -805,27 +813,28 @@ int main(int argc, char* argv[]){
             }
 
             if(glfwGetKey(window, INCREASE_ZOOM_KEY)){
-                camera.zoom += CAMERA_ZOOM_SPEED * PHYSICS_TIME_DELTA;
+                camera.zoom += CAMERA_ZOOM_SPEED * timeAccumulator;
                 camera.zoom = gclamp(camera.zoom, CAMERA_ZOOM_MAX, CAMERA_ZOOM_MIN);
             }else if(glfwGetKey(window, DECREASE_ZOOM_KEY)){
                 camera.zoom -= CAMERA_ZOOM_SPEED * PHYSICS_TIME_DELTA;
                 camera.zoom = gclamp(camera.zoom, CAMERA_ZOOM_MAX, CAMERA_ZOOM_MIN);
             }
 
-            updateShipPosition(&playerShip, PHYSICS_TIME_DELTA);
+            updateShipPosition(&playerShip, timeAccumulator);
             if(glfwGetKey(window, GLFW_KEY_A)){
-                updateShipOrientation(&playerShip, SHIP_RCS_TOURGE, PHYSICS_TIME_DELTA);
+                updateShipOrientation(&playerShip, SHIP_RCS_TOURGE, timeAccumulator);
             }else if(glfwGetKey(window, GLFW_KEY_D)){
-                updateShipOrientation(&playerShip, -SHIP_RCS_TOURGE, PHYSICS_TIME_DELTA);
+                updateShipOrientation(&playerShip, -SHIP_RCS_TOURGE, timeAccumulator);
             }
 
             //Do physics here
             playerShip.acceleration.x = 0.0f;
             playerShip.acceleration.y = 0.0f;
+            //debugFrame(&playerShip);
             applyShipPositionAndOrientation(&playerShip);
             updateThrustTriangle(thrustTriangleVertices, &playerShip, &thurstTriangleColor);
-            applyGravity(&paleBlueDot, &playerShip, PHYSICS_TIME_DELTA);
-
+            applyGravity(&paleBlueDot, &playerShip, timeAccumulator);
+            updateCamera(&camera, &playerShip, frameTime);
             timeAccumulator = 0; //Keep time
         }
     }
