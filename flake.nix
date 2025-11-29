@@ -31,6 +31,7 @@
               mesa
               libglvnd
               xorg.libX11
+              libc
             ];
             installPhase = ''
               mkdir -p $out/bin
@@ -56,8 +57,9 @@
               gdb
               clang-tools
               bear
-              vscodium-fhs
+              bun
             ];
+            shellHook = ''bunx nodemon --watch main.c --exec "sh -c 'make && ./build/spacer3000 || true'"'';
           };
         }
       );

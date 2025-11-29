@@ -1,4 +1,5 @@
 #include "glad/glad.h"
+#include "glad/khrplatform.h"
 #include <GLFW/glfw3.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -68,7 +69,10 @@
 #define PLANET_COLOR_R 0.5f
 #define PLANET_COLOR_G 0.5f
 #define PLANET_COLOR_B 1.0f
-#define PLANET_MASS 15.0f
+#define PLANET_MASS 20.0f
+
+//Pad Definitions
+#define DEFAULT_PAD_ANGLE M_PI / 2
 
 //Ship Definitions
 #define SHIP_ENGINE_MAX_THRUST 125.0f
@@ -80,7 +84,7 @@
 #define SHIP_INITIAL_VELOCITY_Y 0.0f
 #define SHIP_INITIAL_ACCELERATION_X 0.0f
 #define SHIP_INITIAL_ACCELERATION_Y 0.0f
-#define SHIP_INITIAL_ORIENTATION 0.0f
+#define SHIP_INITIAL_ORIENTATION M_PI / 2
 #define SHIP_INITIAL_THRUST 0.0f
 #define THRUST_TRIANGLE_BASE_WIDTH 0.1f
 #define THRUST_TRIANGLE_TIP_EXTEND 0.1f
@@ -104,6 +108,7 @@ struct glObjectDataSet{
 
     //Draw settings
     GLint primitiveType;
+    GLuint shaderProgram;
 };
 
 struct Vector2{
@@ -134,7 +139,7 @@ struct Spaceship{
 
     //Structural Data
     struct Color color;
-    GLfloat *bodyVertexDataArray;
+    struct glObjectDataSet glData;
     GLfloat *thrustTriangleVertexDataArray;
 };
 
@@ -155,6 +160,10 @@ struct Pad{
     struct Planet *parentPlanet;
     struct glObjectDataSet glData;
 };
+
+float sin2(float x) {
+    
+}
 
 void printVertexArray(GLfloat* vertexDataArray, size_t vertexCount, unsigned int stride){ //Debug!!!
     printf("x\ty\t,z\n");
@@ -195,13 +204,6 @@ GLfloat gabsf(GLfloat value){
     return value < 0.0f ? value * -1.0f : value;
 }
 
-struct Vector2 add(struct Vector2 vec1, struct Vector2 vec2) {
-    struct Vector2 vecR;
-    vecR.x = vec1.x + vec2.x;
-    vecR.y = vec1.y + vec2.y;
-    return vecR;
-}
-
 GLfloat* combineVertexDataArrays(GLfloat* array1, size_t size1, GLfloat* array2, size_t size2){
     size_t combinedSize = size1 + size2;
     GLfloat* combinedArray = malloc(combinedSize * sizeof(GLfloat));
@@ -231,7 +233,7 @@ struct Vector2 getTriangleMiddleFromVertexPositions(struct Vector2 vertex0Positi
 }
 
 GLfloat* getTrianglefanCircle(GLfloat centerX, GLfloat centerY, GLfloat radius, GLint polyCount, GLfloat colorR, GLfloat colorG, GLfloat colorB){
-    float rotAngle = 3.1415926f * 2.0f / polyCount;
+    float rotAngle = M_PI * 2.0f / polyCount;
     GLfloat vertCount = polyCount + 2;
     GLfloat* circleData = malloc(vertCount * FLOATS_IN_VERTEX * sizeof(GLfloat));
 
@@ -256,7 +258,7 @@ GLfloat* getTrianglefanCircle(GLfloat centerX, GLfloat centerY, GLfloat radius, 
     return circleData;
 }
 
-struct glObjectDataSet getRectangle(struct Vector2 center, struct Vector2 dimensions) {
+struct glObjectDataSet getRectangle(struct Vector2 center, struct Vector2 dimensions){
     struct glObjectDataSet rectangle;
     rectangle.vertexCount = VERTS_IN_RECTANGLE;
     rectangle.vertexDataBufferSize = rectangle.vertexCount * FLOATS_IN_POINT * sizeof(GLfloat);
@@ -359,6 +361,13 @@ void translateOrigin(GLfloat *vertexDataArray, size_t vertexCount, struct Vector
     }
 }
 
+struct Vector2 rotateVector(struct Vector2 vector, float angle){
+    struct Vector2 rotated;
+    rotated.x = vector.x * cosf(angle) - vector.y * sinf(angle);
+    rotated.y = vector.x * sinf(angle) + vector.y * cosf(angle);
+    return rotated;
+}
+
 void rotateVertexArray(GLfloat* vertexArray, size_t vertexCount, float rotationAngle, unsigned int stride){
     for(size_t currentVertexStartIndex = 0; currentVertexStartIndex < vertexCount * stride; currentVertexStartIndex += stride){
         GLfloat newX = vertexArray[currentVertexStartIndex] * cosf(rotationAngle) - vertexArray[currentVertexStartIndex +1] * sinf(rotationAngle);
@@ -384,48 +393,51 @@ void convertScreenSpaceToLocal(GLfloat* vertexArray, size_t vertexCount, unsigne
     }
 }
 
-struct Vector2 convertPolarToCatesian(struct Vector2 polarVector) {
+struct Vector2 convertPolarToCatesian(struct Vector2 polarVector){
     struct Vector2 catesianVector;
     catesianVector.x = polarVector.x * cosf(polarVector.y);
     catesianVector.y = polarVector.x * sinf(polarVector.y);
     return catesianVector;
 }
 
-float convertDegreesToRadiants(float degrees) {
-    return degrees * M_PI / 180.0f;
-}
-
-
-void updateTriangleVertices(GLfloat* vertexDataArray){
-    GLfloat triangleShipVertices[] = {
+void resetTriangleVertices(GLfloat* vertexDataArray){
+    GLfloat defaultTriangleVertices[] = { //TODO: Remove this and make it dynamic somehow
         -0.25f, -0.144f, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f,    // bottom-left
         -0.25f, 0.144f, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f,   // top-left  
         0.25f, 0.0f, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f,  // tip-right
     };
 
     for(size_t currentVertex = 0; currentVertex < VERTS_IN_TRIANGLE; currentVertex++){
-        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + VECTOR_X] = triangleShipVertices[currentVertex * FLOATS_IN_VERTEX + VECTOR_X];
-        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + VECTOR_Y] = triangleShipVertices[currentVertex * FLOATS_IN_VERTEX + VECTOR_Y];
-        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + VECTOR_Z] = triangleShipVertices[currentVertex * FLOATS_IN_VERTEX + VECTOR_Z];
-        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + COLOR_R] = triangleShipVertices[currentVertex * FLOATS_IN_VERTEX + COLOR_R];
-        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + COLOR_G] = triangleShipVertices[currentVertex * FLOATS_IN_VERTEX + COLOR_G];
-        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + COLOR_B] = triangleShipVertices[currentVertex * FLOATS_IN_VERTEX + COLOR_B];
+        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + VECTOR_X] = defaultTriangleVertices[currentVertex * FLOATS_IN_VERTEX + VECTOR_X];
+        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + VECTOR_Y] = defaultTriangleVertices[currentVertex * FLOATS_IN_VERTEX + VECTOR_Y];
+        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + VECTOR_Z] = defaultTriangleVertices[currentVertex * FLOATS_IN_VERTEX + VECTOR_Z];
+        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + COLOR_R] = defaultTriangleVertices[currentVertex * FLOATS_IN_VERTEX + COLOR_R];
+        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + COLOR_G] = defaultTriangleVertices[currentVertex * FLOATS_IN_VERTEX + COLOR_G];
+        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + COLOR_B] = defaultTriangleVertices[currentVertex * FLOATS_IN_VERTEX + COLOR_B];
     }
 }
 
 GLfloat* getTriangleVertices(struct Vector2 position, GLfloat orientation){
     GLfloat* vertexDataArray = malloc(VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat));
-    updateTriangleVertices(vertexDataArray);
+    resetTriangleVertices(vertexDataArray);
     rotateVertexArray(vertexDataArray, VERTS_IN_TRIANGLE, orientation, FLOATS_IN_VERTEX);
     translateVertexArray(vertexDataArray, VERTS_IN_TRIANGLE, &position, FLOATS_IN_VERTEX);
     return vertexDataArray;
+}
+
+struct glObjectDataSet getTriangle(struct Vector2 center, GLfloat orientation, struct Color color) {
+    struct glObjectDataSet glData;
+    glData.vertexCount = VERTS_IN_TRIANGLE;
+    glData.vertexDataBufferSize = VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat);
+    glData.vertexDataBuffer = getTriangleVertices(center, orientation);
+    glData.primitiveType = GL_TRIANGLES;
+    return glData;
 }
 
 void updateCamera(struct Camera *cam, struct Spaceship *ship, float deltaTime){
     cam->position.x = ship->position.x;
     cam->position.y = ship->position.y;
 }
-
 
 void updateShipPosition(struct Spaceship *ship, double deltaTime){
     ship->acceleration.x += ship->thrust / ship->mass * cosf(ship->orientation) * deltaTime;
@@ -449,8 +461,8 @@ void updateShipThrust(struct Spaceship *ship, GLfloat buttonForce, double deltaT
 
 void updateThrustTriangle(GLfloat* thrustTriangleArray, struct Spaceship *ship, struct Color *thurstTriangleColor){
     struct Vector2 baseCenter;
-    baseCenter.x = (ship->bodyVertexDataArray[TRIANGLE_VERTEX_LEFT + VECTOR_X] + ship->bodyVertexDataArray[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + VECTOR_X]) / 2.0f;
-    baseCenter.y = (ship->bodyVertexDataArray[TRIANGLE_VERTEX_LEFT + VECTOR_Y] + ship->bodyVertexDataArray[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + VECTOR_Y]) / 2.0f;
+    baseCenter.x = (ship->glData.vertexDataBuffer[TRIANGLE_VERTEX_LEFT + VECTOR_X] + ship->glData.vertexDataBuffer[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + VECTOR_X]) / 2.0f;
+    baseCenter.y = (ship->glData.vertexDataBuffer[TRIANGLE_VERTEX_LEFT + VECTOR_Y] + ship->glData.vertexDataBuffer[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + VECTOR_Y]) / 2.0f;
     
     struct Vector2 thrustDirection = getDirection(&ship->position, &baseCenter);
     normalize(&thrustDirection);
@@ -499,20 +511,19 @@ void applyGravity(struct Planet *planet, struct Spaceship *ship, double deltaTim
 }
 
 void applyShipPositionAndOrientation(struct Spaceship *ship){
-    updateTriangleVertices(ship->bodyVertexDataArray);
-    rotateVertexArray(ship->bodyVertexDataArray, VERTS_IN_TRIANGLE, ship->orientation, FLOATS_IN_VERTEX);
-    translateVertexArray(ship->bodyVertexDataArray, VERTS_IN_TRIANGLE, &ship->position, FLOATS_IN_VERTEX);
+    resetTriangleVertices(ship->glData.vertexDataBuffer);
+    rotateVertexArray(ship->glData.vertexDataBuffer, VERTS_IN_TRIANGLE, ship->orientation, FLOATS_IN_VERTEX);
+    translateVertexArray(ship->glData.vertexDataBuffer, VERTS_IN_TRIANGLE, &ship->position, FLOATS_IN_VERTEX);
 }
 
 //OpenGL wrapper functions
-void makeGlObject(struct glObjectDataSet *vds) {
+void makeGlObject(struct glObjectDataSet *vds){
     glGenVertexArrays(1, &vds->vao);
     glGenBuffers(1, &vds->vbo);
     glBindVertexArray(vds->vao);
     glBindBuffer(GL_ARRAY_BUFFER, vds->vbo);
     glBufferData(GL_ARRAY_BUFFER, vds->vertexDataBufferSize, vds->vertexDataBuffer, GL_DYNAMIC_DRAW);
     if(vds->indexCount > 0){
-        printf("Binding Element Array buffer for pad");
         glGenBuffers(1, &vds->ibo);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vds->ibo);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, vds->indexCount * sizeof(GLuint), vds->vertexIndexBuffer, GL_STATIC_DRAW);
@@ -523,7 +534,7 @@ void makeGlObject(struct glObjectDataSet *vds) {
     }
 }
 
-void makeDefaultShaderObject(struct glObjectDataSet *vds) {
+void makeDefaultShaderObject(struct glObjectDataSet *vds){
     makeGlObject(vds);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*) 0);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_TRUE, 6 * sizeof(float), (void*) (3*sizeof(float)));
@@ -566,7 +577,7 @@ void linkGlShaders(GLuint shaderProgram, GLuint vertexShader, GLuint fragmentSha
     glDeleteShader(fragmentShader);
 }
 
-void drawGlObject(struct glObjectDataSet *ods) {
+void drawGlObject(struct glObjectDataSet *ods){
     glBindVertexArray(ods->vao);
     glBindBuffer(GL_ARRAY_BUFFER, ods->vbo);
     glBufferSubData(GL_ARRAY_BUFFER, 0, ods->vertexDataBufferSize, ods->vertexDataBuffer);
@@ -581,13 +592,13 @@ void drawGlObject(struct glObjectDataSet *ods) {
     }
 }
 
-struct glObjectDataSet initDefaultGlObject(void) {
+struct glObjectDataSet initDefaultGlObject(void){
     struct glObjectDataSet ods;
     memset(&ods, 0, sizeof(struct glObjectDataSet));
     return ods;
 }
 
-void deleteGlObject(struct glObjectDataSet *ods) {
+void deleteGlObject(struct glObjectDataSet *ods){
     /*free(ods->vertexDataBuffer);
     free(ods->vertexIndexBuffer);*/
     glDeleteVertexArrays(1, &ods->vao);
@@ -609,15 +620,61 @@ void windowFocusCallback(GLFWwindow* window, int focused){
     windowIsFocused = focused;
 }
 
+//Object instance management
+struct Planet makePlanet(struct Vector2 location, GLfloat radius, float mass, struct Color color){
+    struct Planet planet;
+    planet.radius = radius;
+    planet.position = location;
+    planet.mass = mass;
+    planet.color = color;
+    planet.vertexDataArray = getTrianglefanCircle(location.x, location.y, radius, PLANET_POLY_COUNT, color.red, color.green, color.blue);
+    planet.vertexCount = (PLANET_POLY_COUNT + 2);
+    return planet;
+}
+
+struct Pad makePad(struct Planet *parentPlanet, float angle){
+    struct Pad pad; 
+    pad.parentPlanet = parentPlanet;
+    pad.angle = angle;
+    struct Vector2 origin = {0, 0};
+    struct Vector2 dimensions = {parentPlanet->radius / 10, parentPlanet->radius / 1.667};
+    struct Vector2 polarPosition = {parentPlanet->radius, angle};
+    pad.glData = getRectangle(origin, dimensions);
+    rotateVertexArray(pad.glData.vertexDataBuffer, pad.glData.vertexCount, pad.angle, FLOATS_IN_POINT);
+    struct Vector2 translationVector = {parentPlanet->position.x, parentPlanet->position.y};
+    struct Vector2 planetRadientVector = {parentPlanet->radius * cosf(angle), parentPlanet->radius * sinf(angle)};
+    translationVector.x += planetRadientVector.x;
+    translationVector.y += planetRadientVector.y;
+    translateVertexArray(pad.glData.vertexDataBuffer, VERTS_IN_RECTANGLE, &translationVector, FLOATS_IN_POINT);
+    return pad;
+}
+
+
+struct Spaceship makeShip(struct Vector2 position, float orientation, struct Vector2 velocity, struct Color color){
+    struct Spaceship ship;
+    ship.position = position;
+    ship.orientation = orientation;
+    ship.velocity = velocity;
+    ship.color = color;
+    ship.mass = SHIP_MASS;
+    ship.acceleration.x = SHIP_INITIAL_ACCELERATION_X;
+    ship.acceleration.y = SHIP_INITIAL_ACCELERATION_Y;
+    ship.thrust = SHIP_INITIAL_THRUST;
+    struct glObjectDataSet gldata;
+    ship.glData = getTriangle(ship.position, ship.orientation, ship.color);
+    return ship;
+}
+
+//Debug functions
 void debugFrame(struct Spaceship *playerShip){
     printf("=== FRAME DEBUG ===\n");
     printf("Ship position: (%.3f, %.3f)\n", playerShip->position.x, playerShip->position.y);
     printf("Ship vertices:\n");
     for(int i = 0; i < VERTS_IN_TRIANGLE; i++) {
         printf("  V%d: (%.3f, %.3f, %.3f)\n", i,
-            playerShip->bodyVertexDataArray[i * FLOATS_IN_VERTEX + VECTOR_X],
-            playerShip->bodyVertexDataArray[i * FLOATS_IN_VERTEX + VECTOR_Y],
-            playerShip->bodyVertexDataArray[i * FLOATS_IN_VERTEX + VECTOR_Z]);
+            playerShip->glData.vertexDataBuffer[i * FLOATS_IN_VERTEX + VECTOR_X],
+            playerShip->glData.vertexDataBuffer[i * FLOATS_IN_VERTEX + VECTOR_Y],
+            playerShip->glData.vertexDataBuffer[i * FLOATS_IN_VERTEX + VECTOR_Z]);
     }
 }
 
@@ -655,57 +712,19 @@ int main(int argc, char* argv[]){
     cameraPosition.y = 0;
     camera.position = cameraPosition;
     camera.zoom = CAMERA_ZOOM_INITIAL;
+    
+    struct Vector2 paleBlueDotPosition = {PLANET_POSITION_X, PLANET_POSITION_Y};
+    struct Color paleBlueColor = {PLANET_COLOR_R, PLANET_COLOR_G, PLANET_COLOR_B};
+    struct Planet paleBlueDot = makePlanet(paleBlueDotPosition, PLANET_RADIUS, PLANET_MASS, paleBlueColor);
 
-    //Planet
-    struct Planet paleBlueDot;
-    paleBlueDot.radius = PLANET_RADIUS;
-    struct Vector2 paleBlueDotPosition;
-    paleBlueDotPosition.x = PLANET_POSITION_X;
-    paleBlueDotPosition.y = PLANET_POSITION_Y;
-    paleBlueDot.position = paleBlueDotPosition;
-    paleBlueDot.mass = PLANET_MASS;
-    struct Color paleBlueColor;
-    paleBlueColor.red = PLANET_COLOR_R;
-    paleBlueColor.green = PLANET_COLOR_G;
-    paleBlueColor.blue = PLANET_COLOR_B;
-    paleBlueDot.color = paleBlueColor;
-    paleBlueDot.vertexDataArray = getTrianglefanCircle(paleBlueDotPosition.x, paleBlueDotPosition.y, paleBlueDot.radius, PLANET_POLY_COUNT, paleBlueColor.red, paleBlueColor.green, paleBlueColor.blue);
-    paleBlueDot.vertexCount = (PLANET_POLY_COUNT + 2);
-
-    //Pad
-    struct Pad cssc;
-    cssc.angle = convertDegreesToRadiants(90.0f);
-    cssc.parentPlanet = &paleBlueDot;
-    struct Vector2 origin = {0.0f, 0.0f};
-    struct Vector2 csscPolarPosition = {cssc.parentPlanet->radius, cssc.angle};
-    struct Vector2 csscCatesianPosition = convertPolarToCatesian(csscPolarPosition);
-    struct Vector2 csscPosition = add(csscCatesianPosition, paleBlueDotPosition);
-    struct Vector2 csscDimensions = {paleBlueDot.radius / 10, paleBlueDot.radius / 1.667};
-    cssc.glData = getRectangle(origin, csscDimensions);
-    rotateVertexArray(cssc.glData.vertexDataBuffer, cssc.glData.vertexCount, cssc.angle, FLOATS_IN_POINT);
-    translateVertexArray(cssc.glData.vertexDataBuffer, cssc.glData.vertexCount, &csscPosition, FLOATS_IN_POINT);
+    struct Pad cssc = makePad(&paleBlueDot, DEFAULT_PAD_ANGLE);
 
     //Ship
-    struct Spaceship playerShip;
     struct Vector2 initialPlayerShipPosition = {SHIP_INITIAL_POSITION_X, SHIP_INITIAL_POSITION_Y};
-    playerShip.bodyVertexDataArray = getTriangleVertices(initialPlayerShipPosition, 0.0f);
-    translateVertexArray(playerShip.bodyVertexDataArray, VERTS_IN_TRIANGLE,&initialPlayerShipPosition, FLOATS_IN_VERTEX);
-    struct Vector2 initialMovementDirection = getPerpendicularVector(getDirection(&initialPlayerShipPosition, &paleBlueDotPosition));
-    GLfloat initialMovementMagnitude = sqrtf(GRAVITATIONAL_CONSTANT * PLANET_MASS / getDistance(&initialPlayerShipPosition, &paleBlueDotPosition));
-    struct Vector2 initialPlayerShipVelocity;
-    initialPlayerShipVelocity.x = SHIP_INITIAL_VELOCITY_X;
-    initialPlayerShipVelocity.y = SHIP_INITIAL_VELOCITY_Y;
-    scaleVertexDataArray(playerShip.bodyVertexDataArray, 3, 0.5f, FLOATS_IN_VERTEX);
-    struct Vector2 playerShipVertex0Position = {playerShip.bodyVertexDataArray[VECTOR_X], playerShip.bodyVertexDataArray[VECTOR_Y]};
-    struct Vector2 playerShipVertex1Position = {playerShip.bodyVertexDataArray[FLOATS_IN_VERTEX + VECTOR_X], playerShip.bodyVertexDataArray[FLOATS_IN_VERTEX + VECTOR_Y]};
-    struct Vector2 playerShipVertex2Position = {playerShip.bodyVertexDataArray[2 * FLOATS_IN_VERTEX + VECTOR_X], playerShip.bodyVertexDataArray[2 * FLOATS_IN_VERTEX * VECTOR_Y]};
-    playerShip.mass = SHIP_MASS;
-    playerShip.position = getTriangleMiddleFromVertexPositions(playerShipVertex0Position, playerShipVertex1Position, playerShipVertex2Position);
-    playerShip.velocity = initialPlayerShipVelocity;
-    playerShip.acceleration.x = SHIP_INITIAL_ACCELERATION_X;
-    playerShip.acceleration.y = SHIP_INITIAL_ACCELERATION_Y;
-    playerShip.thrust = SHIP_INITIAL_THRUST;
-    playerShip.orientation = SHIP_INITIAL_ORIENTATION;
+    struct Vector2 initialPlayerShipVelocity = {SHIP_INITIAL_VELOCITY_X, SHIP_INITIAL_VELOCITY_Y};
+    struct Color playerShipColor = {0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f};
+    struct Spaceship playerShip = makeShip(initialPlayerShipPosition, SHIP_INITIAL_ORIENTATION, initialPlayerShipVelocity, playerShipColor);
+
 
     //Thrust vector indicator
     struct Color thurstTriangleColor = {0.9f, 0.0f, 0.0f};
@@ -720,12 +739,8 @@ int main(int argc, char* argv[]){
     GLuint defaultFragmentShader = makeGlShader(defaultFragmentShaderSource, GL_FRAGMENT_SHADER);
     GLuint defaultShaderProgram = glCreateProgram();
     linkGlShaders(defaultShaderProgram, defaultVertexShader, defaultFragmentShader);
-    struct glObjectDataSet playerShipDataSet = initDefaultGlObject();
-    playerShipDataSet.vertexDataBuffer = playerShip.bodyVertexDataArray;
-    playerShipDataSet.vertexCount = VERTS_IN_TRIANGLE;
-    playerShipDataSet.vertexDataBufferSize = playerShipDataSet.vertexCount * FLOATS_IN_VERTEX * sizeof(GLfloat);
-    playerShipDataSet.primitiveType = GL_TRIANGLES;
-    makeDefaultShaderObject(&playerShipDataSet);
+    
+    makeDefaultShaderObject(&playerShip.glData);
     struct glObjectDataSet thrustIndicatorDataSet = initDefaultGlObject();
     thrustIndicatorDataSet.vertexDataBuffer = playerShip.thrustTriangleVertexDataArray;
     thrustIndicatorDataSet.vertexCount = VERTS_IN_TRIANGLE;
@@ -780,7 +795,7 @@ int main(int argc, char* argv[]){
         glUniform1f(zoomDefaultShaderPtr, camera.zoom);
         
         //Draw objects using default shaders
-        drawGlObject(&playerShipDataSet);
+        drawGlObject(&playerShip.glData);
         drawGlObject(&thrustIndicatorDataSet);
         drawGlObject(&paleBlueDotDataSet);
         
@@ -832,7 +847,6 @@ int main(int argc, char* argv[]){
             //Do physics here
             playerShip.acceleration.x = 0.0f;
             playerShip.acceleration.y = 0.0f;
-            //debugFrame(&playerShip);
             applyShipPositionAndOrientation(&playerShip);
             updateThrustTriangle(thrustTriangleVertices, &playerShip, &thurstTriangleColor);
             applyGravity(&paleBlueDot, &playerShip, timeAccumulator);
@@ -842,7 +856,7 @@ int main(int argc, char* argv[]){
     }
 
     //Clean up shaders
-    deleteGlObject(&playerShipDataSet);
+    deleteGlObject(&playerShip.glData);
     deleteGlObject(&thrustIndicatorDataSet);
     deleteGlObject(&paleBlueDotDataSet);
     glDeleteProgram(defaultShaderProgram);
