@@ -88,8 +88,11 @@
 #define SHIP_INITIAL_THRUST 0.0f
 #define THRUST_TRIANGLE_BASE_WIDTH 0.1f
 #define THRUST_TRIANGLE_TIP_EXTEND 0.1f
+#define THRUST_TRIANGLE_COLOR_R 1.0f
+#define THRUST_TRIANGLE_COLOR_G 0.0f
+#define THRUST_TRIANGLE_COLOR_B 0.0f
 
-struct glObjectDataSet{
+struct GlObjectDataSet{
     //Data
     GLfloat* vertexDataBuffer;
     GLuint* vertexIndexBuffer;
@@ -139,8 +142,8 @@ struct Spaceship{
 
     //Structural Data
     struct Color color;
-    struct glObjectDataSet glData;
-    GLfloat *thrustTriangleVertexDataArray;
+    struct GlObjectDataSet bodyGlData;
+    struct GlObjectDataSet thrustTriangleGlData;
 };
 
 struct Planet{
@@ -158,11 +161,11 @@ struct Planet{
 struct Pad{
     float angle;
     struct Planet *parentPlanet;
-    struct glObjectDataSet glData;
+    struct GlObjectDataSet glData;
 };
 
-float sin2(float x) {
-    
+void printGlError(GLenum error, unsigned int step) {
+    printf("OpenGL Error: %x in step %u\n", error, step);
 }
 
 void printVertexArray(GLfloat* vertexDataArray, size_t vertexCount, unsigned int stride){ //Debug!!!
@@ -258,8 +261,8 @@ GLfloat* getTrianglefanCircle(GLfloat centerX, GLfloat centerY, GLfloat radius, 
     return circleData;
 }
 
-struct glObjectDataSet getRectangle(struct Vector2 center, struct Vector2 dimensions){
-    struct glObjectDataSet rectangle;
+struct GlObjectDataSet getRectangle(struct Vector2 center, struct Vector2 dimensions){
+    struct GlObjectDataSet rectangle;
     rectangle.vertexCount = VERTS_IN_RECTANGLE;
     rectangle.vertexDataBufferSize = rectangle.vertexCount * FLOATS_IN_POINT * sizeof(GLfloat);
     rectangle.vertexDataBuffer = malloc(rectangle.vertexDataBufferSize); 
@@ -417,6 +420,32 @@ void resetTriangleVertices(GLfloat* vertexDataArray){
     }
 }
 
+struct Color* getTriangleVertexColorsFromColor(struct Color color) {
+    struct Color* vertexColors = malloc(VERTS_IN_TRIANGLE * sizeof(struct Color));
+    for(size_t currentVertex = 0; currentVertex < VERTS_IN_TRIANGLE; currentVertex++) {
+        vertexColors[currentVertex].red = color.red;
+        vertexColors[currentVertex].green = color.green;
+        vertexColors[currentVertex].blue = color.blue;
+    }
+    return vertexColors;
+}
+
+void setTriangleVertexColorsFromColor(GLfloat* vertexBufferData, struct Color color){
+    for(size_t currentVertex = 0; currentVertex < VERTS_IN_TRIANGLE; currentVertex++){
+        vertexBufferData[currentVertex * FLOATS_IN_VERTEX + COLOR_R] = color.red;
+        vertexBufferData[currentVertex * FLOATS_IN_VERTEX + COLOR_G] = color.green;
+        vertexBufferData[currentVertex * FLOATS_IN_VERTEX + COLOR_B] = color.blue;
+    }
+}
+
+void setTriangleVertexColorsFromColors(GLfloat* vertexBufferData, struct Color* colors){
+    for(size_t currentVertex = 0; currentVertex < VERTS_IN_TRIANGLE; currentVertex++) {
+        vertexBufferData[currentVertex * FLOATS_IN_VERTEX + COLOR_R] = colors[currentVertex].red;
+        vertexBufferData[currentVertex * FLOATS_IN_VERTEX + COLOR_G] = colors[currentVertex].green;
+        vertexBufferData[currentVertex * FLOATS_IN_VERTEX + COLOR_B] = colors[currentVertex].blue;
+    }
+}
+
 GLfloat* getTriangleVertices(struct Vector2 position, GLfloat orientation){
     GLfloat* vertexDataArray = malloc(VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat));
     resetTriangleVertices(vertexDataArray);
@@ -425,8 +454,8 @@ GLfloat* getTriangleVertices(struct Vector2 position, GLfloat orientation){
     return vertexDataArray;
 }
 
-struct glObjectDataSet getTriangle(struct Vector2 center, GLfloat orientation, struct Color color) {
-    struct glObjectDataSet glData;
+struct GlObjectDataSet getTriangle(struct Vector2 center, GLfloat orientation) {
+    struct GlObjectDataSet glData;
     glData.vertexCount = VERTS_IN_TRIANGLE;
     glData.vertexDataBufferSize = VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat);
     glData.vertexDataBuffer = getTriangleVertices(center, orientation);
@@ -459,10 +488,10 @@ void updateShipThrust(struct Spaceship *ship, GLfloat buttonForce, double deltaT
     ship->thrust = gclamp(ship->thrust, SHIP_ENGINE_MAX_THRUST, 0.0f);
 }
 
-void updateThrustTriangle(GLfloat* thrustTriangleArray, struct Spaceship *ship, struct Color *thurstTriangleColor){
+void updateThrustTriangle(struct Spaceship *ship) {
     struct Vector2 baseCenter;
-    baseCenter.x = (ship->glData.vertexDataBuffer[TRIANGLE_VERTEX_LEFT + VECTOR_X] + ship->glData.vertexDataBuffer[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + VECTOR_X]) / 2.0f;
-    baseCenter.y = (ship->glData.vertexDataBuffer[TRIANGLE_VERTEX_LEFT + VECTOR_Y] + ship->glData.vertexDataBuffer[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + VECTOR_Y]) / 2.0f;
+    baseCenter.x = (ship->bodyGlData.vertexDataBuffer[TRIANGLE_VERTEX_LEFT + VECTOR_X] + ship->bodyGlData.vertexDataBuffer[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + VECTOR_X]) / 2.0f;
+    baseCenter.y = (ship->bodyGlData.vertexDataBuffer[TRIANGLE_VERTEX_LEFT + VECTOR_Y] + ship->bodyGlData.vertexDataBuffer[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + VECTOR_Y]) / 2.0f;
     
     struct Vector2 thrustDirection = getDirection(&ship->position, &baseCenter);
     normalize(&thrustDirection);
@@ -470,26 +499,17 @@ void updateThrustTriangle(GLfloat* thrustTriangleArray, struct Spaceship *ship, 
 
     struct Vector2 triangleBaseDirection = getPerpendicularVector(thrustDirection);
     
-    thrustTriangleArray[TRIANGLE_VERTEX_LEFT * FLOATS_IN_VERTEX + VECTOR_X] = baseCenter.x + triangleBaseDirection.x * THRUST_TRIANGLE_BASE_WIDTH;
-    thrustTriangleArray[TRIANGLE_VERTEX_LEFT * FLOATS_IN_VERTEX + VECTOR_Y] = baseCenter.y + triangleBaseDirection.y * THRUST_TRIANGLE_BASE_WIDTH;
-    thrustTriangleArray[TRIANGLE_VERTEX_LEFT * FLOATS_IN_VERTEX + VECTOR_Z] = 0.0f;
-    thrustTriangleArray[TRIANGLE_VERTEX_LEFT * FLOATS_IN_VERTEX + COLOR_R] = thurstTriangleColor->red;
-    thrustTriangleArray[TRIANGLE_VERTEX_LEFT * FLOATS_IN_VERTEX + COLOR_G] = thurstTriangleColor->green;
-    thrustTriangleArray[TRIANGLE_VERTEX_LEFT * FLOATS_IN_VERTEX + COLOR_B] = thurstTriangleColor->blue;
+    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_LEFT * FLOATS_IN_VERTEX + VECTOR_X] = baseCenter.x + triangleBaseDirection.x * THRUST_TRIANGLE_BASE_WIDTH;
+    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_LEFT * FLOATS_IN_VERTEX + VECTOR_Y] = baseCenter.y + triangleBaseDirection.y * THRUST_TRIANGLE_BASE_WIDTH;
+    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_LEFT * FLOATS_IN_VERTEX + VECTOR_Z] = 0.0f;
     
-    thrustTriangleArray[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + VECTOR_X] = baseCenter.x - triangleBaseDirection.x * THRUST_TRIANGLE_BASE_WIDTH;
-    thrustTriangleArray[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + VECTOR_Y] = baseCenter.y - triangleBaseDirection.y * THRUST_TRIANGLE_BASE_WIDTH;
-    thrustTriangleArray[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + VECTOR_Z] = 0.0f;
-    thrustTriangleArray[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + COLOR_R] = thurstTriangleColor->red;
-    thrustTriangleArray[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + COLOR_G] = thurstTriangleColor->green;
-    thrustTriangleArray[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + COLOR_B] = thurstTriangleColor->blue;
+    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + VECTOR_X] = baseCenter.x - triangleBaseDirection.x * THRUST_TRIANGLE_BASE_WIDTH;
+    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + VECTOR_Y] = baseCenter.y - triangleBaseDirection.y * THRUST_TRIANGLE_BASE_WIDTH;
+    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + VECTOR_Z] = 0.0f;
 
-    thrustTriangleArray[TRIANGLE_VERTEX_MIDDLE * FLOATS_IN_VERTEX + VECTOR_X] = baseCenter.x + tipExtend * thrustDirection.x;
-    thrustTriangleArray[TRIANGLE_VERTEX_MIDDLE * FLOATS_IN_VERTEX + VECTOR_Y] = baseCenter.y + tipExtend * thrustDirection.y;
-    thrustTriangleArray[TRIANGLE_VERTEX_MIDDLE * FLOATS_IN_VERTEX + VECTOR_Z] = 0.0f;
-    thrustTriangleArray[TRIANGLE_VERTEX_MIDDLE * FLOATS_IN_VERTEX + COLOR_R] = thurstTriangleColor->red;
-    thrustTriangleArray[TRIANGLE_VERTEX_MIDDLE * FLOATS_IN_VERTEX + COLOR_G] = 0.5f;
-    thrustTriangleArray[TRIANGLE_VERTEX_MIDDLE * FLOATS_IN_VERTEX + COLOR_B] = 0.0f;
+    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_MIDDLE * FLOATS_IN_VERTEX + VECTOR_X] = baseCenter.x + tipExtend * thrustDirection.x;
+    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_MIDDLE * FLOATS_IN_VERTEX + VECTOR_Y] = baseCenter.y + tipExtend * thrustDirection.y;
+    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_MIDDLE * FLOATS_IN_VERTEX + VECTOR_Z] = 0.0f;
 }
 
 void applyGravity(struct Planet *planet, struct Spaceship *ship, double deltaTime){
@@ -511,30 +531,43 @@ void applyGravity(struct Planet *planet, struct Spaceship *ship, double deltaTim
 }
 
 void applyShipPositionAndOrientation(struct Spaceship *ship){
-    resetTriangleVertices(ship->glData.vertexDataBuffer);
-    rotateVertexArray(ship->glData.vertexDataBuffer, VERTS_IN_TRIANGLE, ship->orientation, FLOATS_IN_VERTEX);
-    translateVertexArray(ship->glData.vertexDataBuffer, VERTS_IN_TRIANGLE, &ship->position, FLOATS_IN_VERTEX);
+    resetTriangleVertices(ship->bodyGlData.vertexDataBuffer);
+    rotateVertexArray(ship->bodyGlData.vertexDataBuffer, VERTS_IN_TRIANGLE, ship->orientation, FLOATS_IN_VERTEX);
+    translateVertexArray(ship->bodyGlData.vertexDataBuffer, VERTS_IN_TRIANGLE, &ship->position, FLOATS_IN_VERTEX);
 }
 
 //OpenGL wrapper functions
-void makeGlObject(struct glObjectDataSet *vds){
+void makeGlObject(struct GlObjectDataSet *vds){
+    GLenum error = GL_NO_ERROR;
+
     glGenVertexArrays(1, &vds->vao);
+    if(error = glGetError() != GL_NO_ERROR) printGlError(error, 1);
+
     glGenBuffers(1, &vds->vbo);
+    if(error = glGetError() != GL_NO_ERROR) printGlError(error, 2);
+
     glBindVertexArray(vds->vao);
+    if(error = glGetError() != GL_NO_ERROR) printGlError(error, 3);
+
     glBindBuffer(GL_ARRAY_BUFFER, vds->vbo);
+    if(error = glGetError() != GL_NO_ERROR) printGlError(error,4);
+
     glBufferData(GL_ARRAY_BUFFER, vds->vertexDataBufferSize, vds->vertexDataBuffer, GL_DYNAMIC_DRAW);
+    if(error = glGetError() != GL_NO_ERROR) printGlError(error, 5);
+
     if(vds->indexCount > 0){
         glGenBuffers(1, &vds->ibo);
+        if(error = glGetError() != GL_NO_ERROR) printGlError(error, 6);
+
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vds->ibo);
+        if(error = glGetError() != GL_NO_ERROR) printGlError(error, 7);
+
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, vds->indexCount * sizeof(GLuint), vds->vertexIndexBuffer, GL_STATIC_DRAW);
-    }
-    GLenum error;
-    while((error = glGetError()) != GL_NO_ERROR){
-        printf("OpenGL error during buffer binding: %x\n", error);
+        if(error = glGetError() != GL_NO_ERROR) printGlError(error, 8);
     }
 }
 
-void makeDefaultShaderObject(struct glObjectDataSet *vds){
+void makeDefaultShaderObject(struct GlObjectDataSet *vds){
     makeGlObject(vds);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*) 0);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_TRUE, 6 * sizeof(float), (void*) (3*sizeof(float)));
@@ -542,7 +575,7 @@ void makeDefaultShaderObject(struct glObjectDataSet *vds){
     glEnableVertexAttribArray(1);
 }
 
-void makePadShaderObject(struct glObjectDataSet *vds) {
+void makePadShaderObject(struct GlObjectDataSet *vds) {
     makeGlObject(vds);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*) 0);
     glEnableVertexAttribArray(0);
@@ -562,7 +595,7 @@ GLuint makeGlShader(const char* source, GLuint type) {
     return shader;
 }
 
-void linkGlShaders(GLuint shaderProgram, GLuint vertexShader, GLuint fragmentShader) {
+void linkGlShaders(GLuint shaderProgram, GLuint vertexShader, GLuint fragmentShader){
     glAttachShader(shaderProgram, vertexShader);
     glAttachShader(shaderProgram, fragmentShader);
     glLinkProgram(shaderProgram);
@@ -577,33 +610,49 @@ void linkGlShaders(GLuint shaderProgram, GLuint vertexShader, GLuint fragmentSha
     glDeleteShader(fragmentShader);
 }
 
-void drawGlObject(struct glObjectDataSet *ods){
+void drawGlObject(struct GlObjectDataSet *ods){
+    GLenum error = GL_NO_ERROR;
     glBindVertexArray(ods->vao);
+    #if DEBUG
+        if(error = glGetError() != GL_NO_ERROR) printGlError(error, 1);
+    #endif
+
     glBindBuffer(GL_ARRAY_BUFFER, ods->vbo);
+    #if DEBUG
+        if(error = glGetError() != GL_NO_ERROR) printGlError(error, 2);
+    #endif
+
     glBufferSubData(GL_ARRAY_BUFFER, 0, ods->vertexDataBufferSize, ods->vertexDataBuffer);
+    #if DEBUG
+        //printf("size: %zu\tData:\n", ods->vertexDataBufferSize);
+        if(error = glGetError() != GL_NO_ERROR) printGlError(error, 3);
+    #endif
+
     if(ods->indexCount > 0) {
         glDrawElements(ods->primitiveType, ods->indexCount, GL_UNSIGNED_INT, 0);
+        #if DEBUG
+            if(error = glGetError() != GL_NO_ERROR) printGlError(error, 4);
+        #endif
     }else{
         glDrawArrays(ods->primitiveType, 0, ods->vertexCount);
-    }
-    GLenum error;
-    while((error = glGetError()) != GL_NO_ERROR){
-        printf("OpenGL error: %x\n", error);
+        #if DEBUG
+            if(error = glGetError() != GL_NO_ERROR) printGlError(error, 5);
+        #endif
     }
 }
 
-struct glObjectDataSet initDefaultGlObject(void){
-    struct glObjectDataSet ods;
-    memset(&ods, 0, sizeof(struct glObjectDataSet));
+struct GlObjectDataSet initDefaultGlObject(void){
+    struct GlObjectDataSet ods;
+    memset(&ods, 0, sizeof(struct GlObjectDataSet));
     return ods;
 }
 
-void deleteGlObject(struct glObjectDataSet *ods){
+void deleteGlObject(struct GlObjectDataSet *ods){
     /*free(ods->vertexDataBuffer);
     free(ods->vertexIndexBuffer);*/
     glDeleteVertexArrays(1, &ods->vao);
     glDeleteBuffers(1, &ods->vbo);
-    memset(ods, 0, sizeof(struct glObjectDataSet));
+    memset(ods, 0, sizeof(struct GlObjectDataSet));
 }
 
 //Event handlers
@@ -649,7 +698,6 @@ struct Pad makePad(struct Planet *parentPlanet, float angle){
     return pad;
 }
 
-
 struct Spaceship makeShip(struct Vector2 position, float orientation, struct Vector2 velocity, struct Color color){
     struct Spaceship ship;
     ship.position = position;
@@ -660,8 +708,13 @@ struct Spaceship makeShip(struct Vector2 position, float orientation, struct Vec
     ship.acceleration.x = SHIP_INITIAL_ACCELERATION_X;
     ship.acceleration.y = SHIP_INITIAL_ACCELERATION_Y;
     ship.thrust = SHIP_INITIAL_THRUST;
-    struct glObjectDataSet gldata;
-    ship.glData = getTriangle(ship.position, ship.orientation, ship.color);
+    ship.bodyGlData = getTriangle(ship.position, ship.orientation);
+    setTriangleVertexColorsFromColor(ship.bodyGlData.vertexDataBuffer, ship.color);
+    ship.thrustTriangleGlData = getTriangle(ship.position, ship.orientation + M_PI);
+    struct Color thrustTriangleBaseColor = {THRUST_TRIANGLE_COLOR_R, THRUST_TRIANGLE_COLOR_G, THRUST_TRIANGLE_COLOR_B};
+    struct Color thrustTriangleTipColor = { THRUST_TRIANGLE_COLOR_R, THRUST_TRIANGLE_COLOR_G + 0.5f, THRUST_TRIANGLE_COLOR_B + 0.5f};
+    struct Color colors[] = {thrustTriangleBaseColor, thrustTriangleBaseColor, thrustTriangleTipColor};
+    setTriangleVertexColorsFromColors(ship.thrustTriangleGlData.vertexDataBuffer, colors);
     return ship;
 }
 
@@ -670,11 +723,12 @@ void debugFrame(struct Spaceship *playerShip){
     printf("=== FRAME DEBUG ===\n");
     printf("Ship position: (%.3f, %.3f)\n", playerShip->position.x, playerShip->position.y);
     printf("Ship vertices:\n");
-    for(int i = 0; i < VERTS_IN_TRIANGLE; i++) {
-        printf("  V%d: (%.3f, %.3f, %.3f)\n", i,
-            playerShip->glData.vertexDataBuffer[i * FLOATS_IN_VERTEX + VECTOR_X],
-            playerShip->glData.vertexDataBuffer[i * FLOATS_IN_VERTEX + VECTOR_Y],
-            playerShip->glData.vertexDataBuffer[i * FLOATS_IN_VERTEX + VECTOR_Z]);
+    for(int currentVertex = 0; currentVertex < VERTS_IN_TRIANGLE; currentVertex++) {
+        printf("  V%d: (%.3f, %.3f, %.3f)\n", currentVertex,
+            playerShip->bodyGlData.vertexDataBuffer[currentVertex * FLOATS_IN_VERTEX + VECTOR_X],
+            playerShip->bodyGlData.vertexDataBuffer[currentVertex * FLOATS_IN_VERTEX + VECTOR_Y],
+            playerShip->bodyGlData.vertexDataBuffer[currentVertex * FLOATS_IN_VERTEX + VECTOR_Z]
+        );
     }
 }
 
@@ -725,13 +779,6 @@ int main(int argc, char* argv[]){
     struct Color playerShipColor = {0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f};
     struct Spaceship playerShip = makeShip(initialPlayerShipPosition, SHIP_INITIAL_ORIENTATION, initialPlayerShipVelocity, playerShipColor);
 
-
-    //Thrust vector indicator
-    struct Color thurstTriangleColor = {0.9f, 0.0f, 0.0f};
-    GLfloat thrustTriangleVertices[VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX];
-    updateThrustTriangle(thrustTriangleVertices, &playerShip, &thurstTriangleColor);
-    playerShip.thrustTriangleVertexDataArray = thrustTriangleVertices;
-
     //Setup default shader and assign to objects
     const char* defaultVertexShaderSource = readShaderFile("shaders/default.vert");
     GLuint defaultVertexShader = makeGlShader(defaultVertexShaderSource, GL_VERTEX_SHADER);
@@ -739,15 +786,10 @@ int main(int argc, char* argv[]){
     GLuint defaultFragmentShader = makeGlShader(defaultFragmentShaderSource, GL_FRAGMENT_SHADER);
     GLuint defaultShaderProgram = glCreateProgram();
     linkGlShaders(defaultShaderProgram, defaultVertexShader, defaultFragmentShader);
-    
-    makeDefaultShaderObject(&playerShip.glData);
-    struct glObjectDataSet thrustIndicatorDataSet = initDefaultGlObject();
-    thrustIndicatorDataSet.vertexDataBuffer = playerShip.thrustTriangleVertexDataArray;
-    thrustIndicatorDataSet.vertexCount = VERTS_IN_TRIANGLE;
-    thrustIndicatorDataSet.vertexDataBufferSize = thrustIndicatorDataSet.vertexCount * FLOATS_IN_VERTEX * sizeof(GLfloat);
-    thrustIndicatorDataSet.primitiveType = GL_TRIANGLES;
-    makeDefaultShaderObject(&thrustIndicatorDataSet);
-    struct glObjectDataSet paleBlueDotDataSet = initDefaultGlObject();
+    makeDefaultShaderObject(&playerShip.bodyGlData);
+    makeDefaultShaderObject(&playerShip.thrustTriangleGlData);
+
+    struct GlObjectDataSet paleBlueDotDataSet = initDefaultGlObject();
     paleBlueDotDataSet.vertexDataBuffer = paleBlueDot.vertexDataArray;
     paleBlueDotDataSet.vertexCount = paleBlueDot.vertexCount;
     paleBlueDotDataSet.vertexDataBufferSize = paleBlueDot.vertexCount * FLOATS_IN_VERTEX * sizeof(GLfloat);
@@ -795,8 +837,8 @@ int main(int argc, char* argv[]){
         glUniform1f(zoomDefaultShaderPtr, camera.zoom);
         
         //Draw objects using default shaders
-        drawGlObject(&playerShip.glData);
-        drawGlObject(&thrustIndicatorDataSet);
+        drawGlObject(&playerShip.bodyGlData);
+        drawGlObject(&playerShip.thrustTriangleGlData);
         drawGlObject(&paleBlueDotDataSet);
         
         //Set pad shader parameters
@@ -848,7 +890,7 @@ int main(int argc, char* argv[]){
             playerShip.acceleration.x = 0.0f;
             playerShip.acceleration.y = 0.0f;
             applyShipPositionAndOrientation(&playerShip);
-            updateThrustTriangle(thrustTriangleVertices, &playerShip, &thurstTriangleColor);
+            updateThrustTriangle(&playerShip);
             applyGravity(&paleBlueDot, &playerShip, timeAccumulator);
             updateCamera(&camera, &playerShip, frameTime);
             timeAccumulator = 0; //Keep time
@@ -856,8 +898,8 @@ int main(int argc, char* argv[]){
     }
 
     //Clean up shaders
-    deleteGlObject(&playerShip.glData);
-    deleteGlObject(&thrustIndicatorDataSet);
+    deleteGlObject(&playerShip.bodyGlData);
+    deleteGlObject(&playerShip.thrustTriangleGlData);
     deleteGlObject(&paleBlueDotDataSet);
     glDeleteProgram(defaultShaderProgram);
     deleteGlObject(&cssc.glData);
