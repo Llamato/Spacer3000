@@ -154,8 +154,7 @@ struct Planet{
 
     //Structural Data
     struct Color color;
-    GLfloat *vertexDataArray;
-    size_t vertexCount;
+    struct GlObjectDataSet glData;
 };
 
 struct Pad{
@@ -676,26 +675,12 @@ struct Planet makePlanet(struct Vector2 location, GLfloat radius, float mass, st
     planet.position = location;
     planet.mass = mass;
     planet.color = color;
-    planet.vertexDataArray = getTrianglefanCircle(location.x, location.y, radius, PLANET_POLY_COUNT, color.red, color.green, color.blue);
-    planet.vertexCount = (PLANET_POLY_COUNT + 2);
+    planet.glData = initDefaultGlObject();
+    planet.glData.primitiveType = GL_TRIANGLE_FAN;
+    planet.glData.vertexCount = (PLANET_POLY_COUNT + 2);
+    planet.glData.vertexDataBufferSize = planet.glData.vertexCount * FLOATS_IN_VERTEX * sizeof(GLfloat);
+    planet.glData.vertexDataBuffer = getTrianglefanCircle(location.x, location.y, radius, PLANET_POLY_COUNT, color.red, color.green, color.blue);
     return planet;
-}
-
-struct Pad makePad(struct Planet *parentPlanet, float angle){
-    struct Pad pad; 
-    pad.parentPlanet = parentPlanet;
-    pad.angle = angle;
-    struct Vector2 origin = {0, 0};
-    struct Vector2 dimensions = {parentPlanet->radius / 10, parentPlanet->radius / 1.667};
-    struct Vector2 polarPosition = {parentPlanet->radius, angle};
-    pad.glData = getRectangle(origin, dimensions);
-    rotateVertexArray(pad.glData.vertexDataBuffer, pad.glData.vertexCount, pad.angle, FLOATS_IN_POINT);
-    struct Vector2 translationVector = {parentPlanet->position.x, parentPlanet->position.y};
-    struct Vector2 planetRadientVector = {parentPlanet->radius * cosf(angle), parentPlanet->radius * sinf(angle)};
-    translationVector.x += planetRadientVector.x;
-    translationVector.y += planetRadientVector.y;
-    translateVertexArray(pad.glData.vertexDataBuffer, VERTS_IN_RECTANGLE, &translationVector, FLOATS_IN_POINT);
-    return pad;
 }
 
 struct Spaceship makeShip(struct Vector2 position, float orientation, struct Vector2 velocity, struct Color color){
@@ -716,6 +701,23 @@ struct Spaceship makeShip(struct Vector2 position, float orientation, struct Vec
     struct Color colors[] = {thrustTriangleBaseColor, thrustTriangleBaseColor, thrustTriangleTipColor};
     setTriangleVertexColorsFromColors(ship.thrustTriangleGlData.vertexDataBuffer, colors);
     return ship;
+}
+
+struct Pad makePad(struct Planet *parentPlanet, float angle){
+    struct Pad pad; 
+    pad.parentPlanet = parentPlanet;
+    pad.angle = angle;
+    struct Vector2 origin = {0, 0};
+    struct Vector2 dimensions = {parentPlanet->radius / 10, parentPlanet->radius / 1.667};
+    struct Vector2 polarPosition = {parentPlanet->radius, angle};
+    pad.glData = getRectangle(origin, dimensions);
+    rotateVertexArray(pad.glData.vertexDataBuffer, pad.glData.vertexCount, pad.angle, FLOATS_IN_POINT);
+    struct Vector2 translationVector = {parentPlanet->position.x, parentPlanet->position.y};
+    struct Vector2 planetRadientVector = {parentPlanet->radius * cosf(angle), parentPlanet->radius * sinf(angle)};
+    translationVector.x += planetRadientVector.x;
+    translationVector.y += planetRadientVector.y;
+    translateVertexArray(pad.glData.vertexDataBuffer, VERTS_IN_RECTANGLE, &translationVector, FLOATS_IN_POINT);
+    return pad;
 }
 
 //Debug functions
@@ -770,7 +772,6 @@ int main(int argc, char* argv[]){
     struct Vector2 paleBlueDotPosition = {PLANET_POSITION_X, PLANET_POSITION_Y};
     struct Color paleBlueColor = {PLANET_COLOR_R, PLANET_COLOR_G, PLANET_COLOR_B};
     struct Planet paleBlueDot = makePlanet(paleBlueDotPosition, PLANET_RADIUS, PLANET_MASS, paleBlueColor);
-
     struct Pad cssc = makePad(&paleBlueDot, DEFAULT_PAD_ANGLE);
 
     //Ship
@@ -788,13 +789,7 @@ int main(int argc, char* argv[]){
     linkGlShaders(defaultShaderProgram, defaultVertexShader, defaultFragmentShader);
     makeDefaultShaderObject(&playerShip.bodyGlData);
     makeDefaultShaderObject(&playerShip.thrustTriangleGlData);
-
-    struct GlObjectDataSet paleBlueDotDataSet = initDefaultGlObject();
-    paleBlueDotDataSet.vertexDataBuffer = paleBlueDot.vertexDataArray;
-    paleBlueDotDataSet.vertexCount = paleBlueDot.vertexCount;
-    paleBlueDotDataSet.vertexDataBufferSize = paleBlueDot.vertexCount * FLOATS_IN_VERTEX * sizeof(GLfloat);
-    paleBlueDotDataSet.primitiveType = GL_TRIANGLE_FAN;
-    makeDefaultShaderObject(&paleBlueDotDataSet);
+    makeDefaultShaderObject(&paleBlueDot.glData);
     
     //Setup pad shader and assign to objects
     const char* padVertexShaderSource = readShaderFile("shaders/pad.vert");
@@ -839,7 +834,7 @@ int main(int argc, char* argv[]){
         //Draw objects using default shaders
         drawGlObject(&playerShip.bodyGlData);
         drawGlObject(&playerShip.thrustTriangleGlData);
-        drawGlObject(&paleBlueDotDataSet);
+        drawGlObject(&paleBlueDot.glData);
         
         //Set pad shader parameters
         glUseProgram(padShaderProgram);
@@ -900,7 +895,7 @@ int main(int argc, char* argv[]){
     //Clean up shaders
     deleteGlObject(&playerShip.bodyGlData);
     deleteGlObject(&playerShip.thrustTriangleGlData);
-    deleteGlObject(&paleBlueDotDataSet);
+    deleteGlObject(&paleBlueDot.glData);
     glDeleteProgram(defaultShaderProgram);
     deleteGlObject(&cssc.glData);
     glDeleteProgram(padShaderProgram);
