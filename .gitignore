@@ -12,5 +12,5 @@ glad/glad.o
 .idea/modules.xml
 .idea/Spacer3000.iml
 .idea/vcs.xml
-.vscode/c_cpp_properties.json
+.vscode/
 .cache/
