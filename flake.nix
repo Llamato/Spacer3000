@@ -49,7 +49,7 @@
 
       devShells = forAllSystems (system:
         let pkgs = pkgsFor system; in {
-          default = pkgs.mkShell {
+          interactive = pkgs.mkShell {
             inputsFrom = [
               self.packages.${system}.default
             ];
@@ -60,6 +60,17 @@
               bun
             ];
             shellHook = ''bunx nodemon --watch main.c --exec "sh -c 'make && ./build/spacer3000 || true'"'';
+          };
+          default = pkgs.mkShell {
+            inputsFrom = [
+              self.packages.${system}.default
+            ];
+            packages = with pkgs; [
+              gdb
+              clang-tools
+              bear
+              bun
+            ];
           };
         }
       );
