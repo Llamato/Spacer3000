@@ -70,6 +70,7 @@
 #define PLANET_COLOR_G 0.5f
 #define PLANET_COLOR_B 1.0f
 #define PLANET_MASS 20.0f
+#define PLANET_COLLISION_TOLERANCE 0.01f
 
 //Pad Definitions
 #define DEFAULT_PAD_ANGLE M_PI / 2
@@ -168,7 +169,7 @@ void printGlError(GLenum error, unsigned int step) {
 }
 
 void printVertexArray(GLfloat* vertexDataArray, size_t vertexCount, unsigned int stride){ //Debug!!!
-    printf("x\ty\t,z\n");
+    printf("x\ty\tz\n");
     for(int currentVertex = 0; currentVertex < vertexCount; currentVertex++){
         printf(
             "%i:\t%f\t%f\t%f\n", 
@@ -290,6 +291,7 @@ struct GlObjectDataSet getRectangle(struct Vector2 center, struct Vector2 dimens
 }
 
 GLfloat getMagnitude(struct Vector2 *vector){
+    //printf("(mx: %f, my: %f)\n", vector->x, vector->y);
     return sqrtf(pow(vector->x, 2) + pow(vector->y, 2));
 }
 
@@ -308,6 +310,7 @@ struct Vector2 getVectorBetweenPoints(struct Vector2 *from, struct Vector2 *to){
     struct Vector2 wayVector;
     wayVector.x = to->x - from->x;
     wayVector.y = to->y - from->y;
+    //printf("WayVector: (%f, %f)\n", wayVector.x, wayVector.y);
     return wayVector;
 }
 
@@ -734,6 +737,78 @@ void debugFrame(struct Spaceship *playerShip){
     }
 }
 
+struct Vector2 getOutwardFacingEdgeNormal(struct Vector2 *edgeVector) {
+    struct Vector2 outwardFacingNormal = {-edgeVector->y, edgeVector->x};
+    return outwardFacingNormal;
+}
+
+struct Vector2 getInwardFacingEdgeNormal(struct Vector2 *edgeVector) {
+    struct Vector2 inwardFacingNormal = {edgeVector->y, -edgeVector->x};
+    return inwardFacingNormal;
+}
+
+struct Vector2 scaleVector(struct Vector2 *vector, GLfloat scaler) {
+    struct Vector2 result = {vector->x * scaler, vector->y * scaler};
+    return result;
+}
+
+struct Vector2 addVectors(struct Vector2 *v1, struct Vector2 *v2) {
+    struct Vector2 result = {v1->x + v2->x, v1->y + v2->y};
+    return result;
+}
+
+struct Vector2 subtractVectors(struct Vector2 *v1, struct Vector2 *v2) {
+    struct Vector2 result = {v1->x - v2->x, v1->y - v2->y};
+    return result;
+}
+
+struct Vector2 multiplyVectors(struct Vector2 *v1, struct Vector2 *v2) {
+    struct Vector2 result;
+    result.x = v1->x * v2->x;
+    result.y = v1->y * v2->y;
+    return result;
+}
+
+GLfloat dotProduct(struct Vector2 *v1, struct Vector2 *v2) {
+    return v1->x * v2->x + v1->y * v2->y;
+}
+
+struct Vector2 projectVertexToLine(struct Vector2 *point, struct Vector2 *line) { 
+    GLfloat lineMagnitude = getMagnitude(line);
+    GLfloat divisor = lineMagnitude * lineMagnitude;
+    GLfloat scaler = dotProduct(point, line) / divisor;
+    return scaleVector(line, scaler);
+}
+
+GLfloat scalerProjectVertexToLine(struct Vector2 *vertex, struct Vector2 *lineStart, struct Vector2 lineEnd) {
+
+}
+
+struct Vector2 *getPointsFromGlData(GLfloat* glData, size_t vertexCount, unsigned int stride) {
+    struct Vector2 *results = (struct Vector2*) malloc(vertexCount * sizeof(struct Vector2));
+    for(size_t currentVertex = 0; currentVertex < vertexCount; currentVertex++) {
+        struct Vector2 currentPoint;
+        currentPoint.x = glData[currentVertex * stride + VECTOR_X];
+        currentPoint.y = glData[currentVertex * stride + VECTOR_Y];
+        results[currentVertex] = currentPoint;
+    }
+    return results;
+}
+
+_Bool isTriangleCollidingWithCircle(struct Spaceship *triangle, struct Planet *circle) {
+    struct Vector2 *triangleVertices = getPointsFromGlData(triangle->bodyGlData.vertexDataBuffer, VERTS_IN_TRIANGLE, FLOATS_IN_VERTEX);
+    for(size_t currentVertex = 0; currentVertex < VERTS_IN_TRIANGLE; currentVertex++) {
+        struct Vector2 wayVector = getVectorBetweenPoints(&triangleVertices[currentVertex], &circle->position);
+        GLfloat distance = getMagnitude(&wayVector);
+        if(distance < circle->radius - PLANET_COLLISION_TOLERANCE) {
+            free(triangleVertices);
+            return KHRONOS_TRUE;
+        }
+    }
+    free(triangleVertices);
+    return KHRONOS_FALSE;
+}
+
 //Game state variables
 int main(int argc, char* argv[]){
     int glfwstatus = glfwInit();
@@ -885,6 +960,13 @@ int main(int argc, char* argv[]){
             playerShip.acceleration.x = 0.0f;
             playerShip.acceleration.y = 0.0f;
             applyShipPositionAndOrientation(&playerShip);
+            if(isTriangleCollidingWithCircle(&playerShip, &paleBlueDot)){
+                printf("%s\n", "You crashed!");
+                while(!glfwWindowShouldClose(window)){
+                    sleep(1);
+                    glfwPollEvents();
+                } 
+            }
             updateThrustTriangle(&playerShip);
             applyGravity(&paleBlueDot, &playerShip, timeAccumulator);
             updateCamera(&camera, &playerShip, frameTime);
