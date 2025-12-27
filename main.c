@@ -203,8 +203,28 @@ char* readShaderFile(const char* filename){
     return string;
 }
 
-GLfloat gabsf(GLfloat value){
+GLfloat gabsf(GLfloat value) {
     return value < 0.0f ? value * -1.0f : value;
+}
+
+GLfloat max(GLfloat values[], size_t numValues) {
+    GLfloat max = values[0];
+    for(size_t currentValue = 1; currentValue < numValues; currentValue++) {
+        if(max < values[currentValue]) {
+            max = values[currentValue];
+        }
+    }
+    return max;
+}
+
+GLfloat min(GLfloat values[], size_t numValues) {
+    GLfloat min = values[0];
+    for(size_t currentValue = 1; currentValue < numValues; currentValue++) {
+        if(min > values[currentValue]) {
+            min = values[currentValue];
+        }
+    }
+    return min;
 }
 
 GLfloat* combineVertexDataArrays(GLfloat* array1, size_t size1, GLfloat* array2, size_t size2){
@@ -780,10 +800,6 @@ struct Vector2 projectVertexToLine(struct Vector2 *point, struct Vector2 *line) 
     return scaleVector(line, scaler);
 }
 
-GLfloat scalerProjectVertexToLine(struct Vector2 *vertex, struct Vector2 *lineStart, struct Vector2 lineEnd) {
-
-}
-
 struct Vector2 *getPointsFromGlData(GLfloat* glData, size_t vertexCount, unsigned int stride) {
     struct Vector2 *results = (struct Vector2*) malloc(vertexCount * sizeof(struct Vector2));
     for(size_t currentVertex = 0; currentVertex < vertexCount; currentVertex++) {
@@ -794,7 +810,7 @@ struct Vector2 *getPointsFromGlData(GLfloat* glData, size_t vertexCount, unsigne
     }
     return results;
 }
-
+ 
 _Bool isTriangleCollidingWithCircle(struct Spaceship *triangle, struct Planet *circle) {
     struct Vector2 *triangleVertices = getPointsFromGlData(triangle->bodyGlData.vertexDataBuffer, VERTS_IN_TRIANGLE, FLOATS_IN_VERTEX);
     for(size_t currentVertex = 0; currentVertex < VERTS_IN_TRIANGLE; currentVertex++) {
@@ -807,6 +823,50 @@ _Bool isTriangleCollidingWithCircle(struct Spaceship *triangle, struct Planet *c
     }
     free(triangleVertices);
     return KHRONOS_FALSE;
+}
+
+_Bool isTriangleCollidingWithRectangle(struct Spaceship *triangle, struct Pad *rectangle) {
+    _Bool result = KHRONOS_TRUE;
+    struct Vector2 *triangleVertices = getPointsFromGlData(triangle->bodyGlData.vertexDataBuffer, VERTS_IN_TRIANGLE, FLOATS_IN_VERTEX);
+    struct Vector2 *rectangleVertices = getPointsFromGlData(rectangle->glData.vertexDataBuffer, VERTS_IN_RECTANGLE, FLOATS_IN_POINT);
+    struct Vector2 normals[VERTS_IN_TRIANGLE + VERTS_IN_RECTANGLE];
+    for(size_t currentEdge = 0; currentEdge < VERTS_IN_TRIANGLE; currentEdge++) {
+        struct Vector2 wayVector = getVectorBetweenPoints(&triangleVertices[currentEdge], &triangleVertices[(currentEdge+1) % VERTS_IN_TRIANGLE]);
+        normals[currentEdge] = getInwardFacingEdgeNormal(&wayVector);
+    }
+    for(size_t currentEdge = 0; currentEdge < VERTS_IN_RECTANGLE; currentEdge++) {
+        struct Vector2 wayVector = getVectorBetweenPoints(&rectangleVertices[currentEdge], &rectangleVertices[(currentEdge+1) % VERTS_IN_RECTANGLE]);
+        normals[currentEdge+VERTS_IN_TRIANGLE] = getInwardFacingEdgeNormal(&wayVector);
+    }
+    for(size_t currentNormal = 0; currentNormal < VERTS_IN_RECTANGLE + VERTS_IN_TRIANGLE; currentNormal++) {
+        GLfloat triangleMin = dotProduct(&triangleVertices[0], &normals[currentNormal]);
+        GLfloat triangleMax = triangleMin;
+        for(size_t currentVertex = 1; currentVertex < VERTS_IN_TRIANGLE; currentVertex++) {
+            GLfloat triangleCurrent = dotProduct(&triangleVertices[currentVertex], &normals[currentNormal]);
+            if(triangleMax < triangleCurrent) {
+                triangleMax = triangleCurrent;
+            }else if(triangleMin > triangleCurrent) {
+                triangleMin = triangleCurrent;
+            }
+        }
+        GLfloat rectangleMin = dotProduct(&rectangleVertices[0], &normals[currentNormal]);
+        GLfloat rectangleMax = rectangleMin;
+        for(size_t currentVertex = 1; currentVertex < VERTS_IN_RECTANGLE; currentVertex++) {
+            GLfloat rectangleCurrent = dotProduct(&rectangleVertices[currentVertex], &normals[currentNormal]);
+            if(rectangleMax < rectangleCurrent) {
+                rectangleMax = rectangleCurrent;
+            }else if (rectangleMin > rectangleCurrent) {
+                rectangleMin = rectangleCurrent;
+            }
+        }
+        if(triangleMax < rectangleMin || rectangleMax < triangleMin) {
+            result = KHRONOS_FALSE;
+            break;
+        }
+    }
+    free(triangleVertices);
+    free(rectangleVertices);
+    return result;
 }
 
 //Game state variables
@@ -960,8 +1020,14 @@ int main(int argc, char* argv[]){
             playerShip.acceleration.x = 0.0f;
             playerShip.acceleration.y = 0.0f;
             applyShipPositionAndOrientation(&playerShip);
-            if(isTriangleCollidingWithCircle(&playerShip, &paleBlueDot)){
+            if(isTriangleCollidingWithRectangle(&playerShip, &cssc)){
+                printf("%s\n", "landed!");
+                //Make fuel bar
+                //Refill fuel here
+            }else if(isTriangleCollidingWithCircle(&playerShip, &paleBlueDot)){
                 printf("%s\n", "You crashed!");
+                //Make gameover screen
+                //Display gameover screen here
                 while(!glfwWindowShouldClose(window)){
                     sleep(1);
                     glfwPollEvents();
