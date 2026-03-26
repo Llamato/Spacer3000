@@ -10,6 +10,11 @@
 //unix specific
 #include <unistd.h>
 
+//cbmChargen
+#include "cbmchargen/cbmchargen.h"
+
+//Debug!!!
+#define DEBUG 1
 
 //OpenGL specific definitions
 #define ERROR_MESSAGE_MAX_LENGTH 512
@@ -33,14 +38,20 @@
 #define INCREASE_ZOOM_KEY GLFW_KEY_I
 #define DECREASE_ZOOM_KEY GLFW_KEY_K
 
-//Vertex data format
+//Vector struct format
 #define VECTOR_X 0
 #define VECTOR_Y 1
 #define VECTOR_Z 2
-#define COLOR_R 3
-#define COLOR_G 4
-#define COLOR_B 5
-#define FLOATS_IN_VERTEX 6
+
+//Color struct format
+#define COLOR_R 0
+#define COLOR_G 1
+#define COLOR_B 2
+#define COLOR_A 3
+
+//Vertex data format
+#define FLOATS_IN_POINT 3
+#define FLOATS_IN_COLOR 4
 
 //Triangle
 #define VERTS_IN_TRIANGLE 3
@@ -49,10 +60,9 @@
 #define TRIANGLE_VERTEX_RIGHT 1
 
 //Rectangle
-#define FLOATS_IN_POINT 3
 #define VERTS_IN_RECTANGLE 4
 
-//World Definitions
+//World definitions
 #define GRAVITATIONAL_CONSTANT 0.8f
 #define PHYSICS_TIME_DELTA 1.0f/320.0f
 #define WORLD_BACKGROUND_COLOR_R 0.0f
@@ -62,7 +72,7 @@
 //Planet Definitions
 #define PLANET_POLY_COUNT 64
 #define PLANET_VERT_COUNT PLANET_POLY_COUNT + 2
-#define PLANETN_FLOAT_COUNT PLANET_VERT_COUNT * FLOATS_IN_VERTEX
+#define PLANETN_FLOAT_COUNT PLANET_VERT_COUNT * (FLOATS_IN_POINT + FLOATS_IN_COLOR)
 #define PLANET_POSITION_X 0.0f
 #define PLANET_POSITION_Y -1.25f
 #define PLANET_RADIUS 0.75f
@@ -124,6 +134,7 @@ struct Color{
     GLfloat red;
     GLfloat green;
     GLfloat blue;
+    GLfloat alpha;
 };
 
 struct Camera{
@@ -164,8 +175,23 @@ struct Pad{
     struct GlObjectDataSet glData;
 };
 
-void printGlError(GLenum error, unsigned int step) {
-    printf("OpenGL Error: %x in step %u\n", error, step);
+struct cbmText{
+    struct Vector2 position;
+    float scale;
+    char* cbmBitmapBytes;
+    struct GlObjectDataSet glData;
+};
+
+void printGlError(GLuint errorcode, unsigned int step){
+    printf("OpenGL Error: %x in step %u\n", errorcode, step);
+    switch (errorcode) {
+        case GL_INVALID_ENUM: printf("GLenum argument out of range.\n"); break;
+        case GL_INVALID_VALUE: printf("Numeric argument out of range.\n"); break;
+        case GL_INVALID_OPERATION: printf("Operation illegal in current state.\n"); break;
+        case GL_INVALID_FRAMEBUFFER_OPERATION: printf("Invalid frame buffer operation.\n"); break;
+        case GL_OUT_OF_MEMORY: printf("Not enough memory left to execute function.\n"); break;
+        default: printf("Unknown OpenGL Error.\n");
+    }
 }
 
 void printVertexArray(GLfloat* vertexDataArray, size_t vertexCount, unsigned int stride){ //Debug!!!
@@ -255,28 +281,30 @@ struct Vector2 getTriangleMiddleFromVertexPositions(struct Vector2 vertex0Positi
     return middle;
 }
 
-GLfloat* getTrianglefanCircle(GLfloat centerX, GLfloat centerY, GLfloat radius, GLint polyCount, GLfloat colorR, GLfloat colorG, GLfloat colorB){
+GLfloat* getTrianglefanCircle(struct Vector2 center, GLfloat radius, GLint polyCount, struct Color color){
     float rotAngle = M_PI * 2.0f / polyCount;
     GLfloat vertCount = polyCount + 2;
-    GLfloat* circleData = malloc(vertCount * FLOATS_IN_VERTEX * sizeof(GLfloat));
+    GLfloat* circleData = malloc(vertCount * (FLOATS_IN_POINT + FLOATS_IN_COLOR) * sizeof(GLfloat));
 
-    circleData[0] = centerX;
-    circleData[1] = centerY;
-    circleData[2] = 0.0f;
-    circleData[3] = colorR;
-    circleData[4] = colorG;
-    circleData[5] = colorB;
+    circleData[VECTOR_X] = center.x;
+    circleData[VECTOR_Y] = center.y;
+    circleData[VECTOR_Z] = 0.0f;
+    circleData[FLOATS_IN_POINT + COLOR_R] = color.red;
+    circleData[FLOATS_IN_POINT + COLOR_G] = color.green;
+    circleData[FLOATS_IN_POINT + COLOR_B] = color.blue;
+    circleData[FLOATS_IN_POINT + COLOR_A] = color.alpha;
 
     for(unsigned int currentVertex = 1; currentVertex < vertCount; currentVertex++){
-      GLfloat currentX = centerX + radius * cosf(rotAngle * currentVertex);
-      GLfloat currentY = centerY + radius * sinf(rotAngle * currentVertex);
-      size_t currentIndex = currentVertex * FLOATS_IN_VERTEX;
-      circleData[currentIndex] = currentX;
-      circleData[currentIndex+1] = currentY;
-      circleData[currentIndex+2] = 0.0f;
-      circleData[currentIndex+3] = colorR;
-      circleData[currentIndex+4] = colorG;
-      circleData[currentIndex+5] = colorB;
+      GLfloat currentX = center.x + radius * cosf(rotAngle * currentVertex);
+      GLfloat currentY = center.y + radius * sinf(rotAngle * currentVertex);
+      size_t currentIndex = currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR);
+      circleData[currentIndex + VECTOR_X] = currentX;
+      circleData[currentIndex + VECTOR_Y] = currentY;
+      circleData[currentIndex + VECTOR_Z] = 0.0f;
+      circleData[currentIndex + FLOATS_IN_POINT + COLOR_R] = color.red;
+      circleData[currentIndex + FLOATS_IN_POINT + COLOR_G] = color.green;
+      circleData[currentIndex + FLOATS_IN_POINT + COLOR_B] = color.blue;
+      circleData[currentIndex + FLOATS_IN_POINT + COLOR_A] = color.alpha;
     }
     return circleData;
 }
@@ -310,6 +338,39 @@ struct GlObjectDataSet getRectangle(struct Vector2 center, struct Vector2 dimens
     return rectangle;
 }
 
+struct GlObjectDataSet getTextRectangle(struct Vector2 center, struct Vector2 dimensions, struct Color textColor, struct Color backgroundColor){
+    struct GlObjectDataSet rectangle;
+    rectangle.vertexCount = VERTS_IN_RECTANGLE;
+    rectangle.vertexDataBufferSize = rectangle.vertexCount * (FLOATS_IN_POINT + 2 * FLOATS_IN_COLOR);
+    rectangle.vertexDataBuffer = malloc(rectangle.vertexDataBufferSize); 
+    
+    const size_t floatsInVertex = FLOATS_IN_POINT + FLOATS_IN_COLOR + COLOR_A + 1;
+    for(size_t currentVertex = 0; currentVertex < VERTS_IN_RECTANGLE; currentVertex++) {
+        rectangle.vertexDataBuffer[currentVertex * floatsInVertex + VECTOR_X] = center.x - dimensions.x / 2;
+        rectangle.vertexDataBuffer[currentVertex * floatsInVertex + VECTOR_Y] = center.y - dimensions.y / 2;
+        rectangle.vertexDataBuffer[currentVertex * floatsInVertex + VECTOR_Z] = 0.0f;
+        rectangle.vertexDataBuffer[currentVertex * floatsInVertex + FLOATS_IN_POINT + COLOR_R] = textColor.red;
+        rectangle.vertexDataBuffer[currentVertex * floatsInVertex + FLOATS_IN_POINT + COLOR_G] = textColor.green;
+        rectangle.vertexDataBuffer[currentVertex * floatsInVertex + FLOATS_IN_POINT + COLOR_B] = textColor.blue;
+        rectangle.vertexDataBuffer[currentVertex * floatsInVertex + FLOATS_IN_POINT + COLOR_A] = textColor.alpha;
+        rectangle.vertexDataBuffer[currentVertex * floatsInVertex + FLOATS_IN_POINT + FLOATS_IN_COLOR + COLOR_R] = backgroundColor.red;
+        rectangle.vertexDataBuffer[currentVertex * floatsInVertex + FLOATS_IN_POINT + FLOATS_IN_COLOR + COLOR_G] = backgroundColor.green;
+        rectangle.vertexDataBuffer[currentVertex * floatsInVertex + FLOATS_IN_POINT + FLOATS_IN_COLOR + COLOR_B] = backgroundColor.blue;
+        rectangle.vertexDataBuffer[currentVertex * floatsInVertex + FLOATS_IN_POINT + FLOATS_IN_COLOR + COLOR_A] = backgroundColor.alpha;
+    }
+
+    rectangle.indexCount = 6;
+    rectangle.vertexIndexBuffer = malloc(rectangle.indexCount * sizeof(GLuint));
+    rectangle.vertexIndexBuffer[0] = 0;  // bottom-left
+    rectangle.vertexIndexBuffer[1] = 1;  // top-left  
+    rectangle.vertexIndexBuffer[2] = 2;  // bottom-right
+    rectangle.vertexIndexBuffer[3] = 1;  // top-left
+    rectangle.vertexIndexBuffer[4] = 3;  // top-right
+    rectangle.vertexIndexBuffer[5] = 2;  // bottom-right
+    rectangle.primitiveType = GL_TRIANGLES;
+    return rectangle;
+}
+
 GLfloat getMagnitude(struct Vector2 *vector){
     //printf("(mx: %f, my: %f)\n", vector->x, vector->y);
     return sqrtf(pow(vector->x, 2) + pow(vector->y, 2));
@@ -330,7 +391,6 @@ struct Vector2 getVectorBetweenPoints(struct Vector2 *from, struct Vector2 *to){
     struct Vector2 wayVector;
     wayVector.x = to->x - from->x;
     wayVector.y = to->y - from->y;
-    //printf("WayVector: (%f, %f)\n", wayVector.x, wayVector.y);
     return wayVector;
 }
 
@@ -369,20 +429,20 @@ GLfloat gclamp(GLfloat value, GLfloat max, GLfloat min){
     return value;
 }
 
-void translateVertexArray(GLfloat *vertexDataArray, size_t vertexCount, struct Vector2 *translationVector, unsigned int stride){
+void translateVertexArray(GLfloat *vertexDataBuffer, size_t vertexCount, struct Vector2 *translationVector, unsigned int stride){
     for(size_t currentVertex = 0; currentVertex < vertexCount; currentVertex++){
-        vertexDataArray[currentVertex * stride + VECTOR_X] += translationVector->x;
-        vertexDataArray[currentVertex * stride + VECTOR_Y] += translationVector->y;
+        vertexDataBuffer[currentVertex * stride + VECTOR_X] += translationVector->x;
+        vertexDataBuffer[currentVertex * stride + VECTOR_Y] += translationVector->y;
     }
 }
 
-void translateOrigin(GLfloat *vertexDataArray, size_t vertexCount, struct Vector2 *from, struct Vector2 *to, unsigned int stride){
+void translateOrigin(GLfloat *vertexDataBuffer, size_t vertexCount, struct Vector2 *from, struct Vector2 *to, unsigned int stride){
     struct Vector2 offset;
     offset.x = from->x - to->x;
     offset.y = from->y - to->y;
     for(size_t currentVertexStartIndex = 0; currentVertexStartIndex < vertexCount * stride; currentVertexStartIndex += stride){
-        vertexDataArray[currentVertexStartIndex + VECTOR_X] += offset.x;
-        vertexDataArray[currentVertexStartIndex + VECTOR_Y] += offset.y;
+        vertexDataBuffer[currentVertexStartIndex + VECTOR_X] += offset.x;
+        vertexDataBuffer[currentVertexStartIndex + VECTOR_Y] += offset.y;
     }
 }
 
@@ -393,28 +453,28 @@ struct Vector2 rotateVector(struct Vector2 vector, float angle){
     return rotated;
 }
 
-void rotateVertexArray(GLfloat* vertexArray, size_t vertexCount, float rotationAngle, unsigned int stride){
+void rotateVertexArray(GLfloat* vertexDataBuffer, size_t vertexCount, float rotationAngle, unsigned int stride){
     for(size_t currentVertexStartIndex = 0; currentVertexStartIndex < vertexCount * stride; currentVertexStartIndex += stride){
-        GLfloat newX = vertexArray[currentVertexStartIndex] * cosf(rotationAngle) - vertexArray[currentVertexStartIndex +1] * sinf(rotationAngle);
-        GLfloat newY = vertexArray[currentVertexStartIndex] * sinf(rotationAngle) + vertexArray[currentVertexStartIndex +1] * cosf(rotationAngle); 
-        vertexArray[currentVertexStartIndex] = newX;
-        vertexArray[currentVertexStartIndex +1] = newY;
+        GLfloat newX = vertexDataBuffer[currentVertexStartIndex] * cosf(rotationAngle) - vertexDataBuffer[currentVertexStartIndex +1] * sinf(rotationAngle);
+        GLfloat newY = vertexDataBuffer[currentVertexStartIndex] * sinf(rotationAngle) + vertexDataBuffer[currentVertexStartIndex +1] * cosf(rotationAngle); 
+        vertexDataBuffer[currentVertexStartIndex] = newX;
+        vertexDataBuffer[currentVertexStartIndex +1] = newY;
     }
 }
 
-void convertScreenSpaceToLocal(GLfloat* vertexArray, size_t vertexCount, unsigned int stride){
+void convertScreenSpaceToLocal(GLfloat* vertexDataBuffer, size_t vertexCount, unsigned int stride){
     GLfloat xSum = 0;
     GLfloat ySum = 0;
     for(size_t currentVertex = 0; currentVertex < vertexCount; currentVertex++){
-        xSum += vertexArray[currentVertex * stride + VECTOR_X];
-        ySum += vertexArray[currentVertex * stride + VECTOR_Y];
+        xSum += vertexDataBuffer[currentVertex * stride + VECTOR_X];
+        ySum += vertexDataBuffer[currentVertex * stride + VECTOR_Y];
     }
     struct Vector2 localCenter;
     localCenter.x = xSum / vertexCount;
     localCenter.y = ySum / vertexCount;
     for(size_t currentVertex = 0; currentVertex < vertexCount; currentVertex++){
-        vertexArray[currentVertex * stride + VECTOR_X] -= localCenter.x;
-        vertexArray[currentVertex * stride + VECTOR_Y] -= localCenter.y;
+        vertexDataBuffer[currentVertex * stride + VECTOR_X] -= localCenter.x;
+        vertexDataBuffer[currentVertex * stride + VECTOR_Y] -= localCenter.y;
     }
 }
 
@@ -425,61 +485,106 @@ struct Vector2 convertPolarToCatesian(struct Vector2 polarVector){
     return catesianVector;
 }
 
-void resetTriangleVertices(GLfloat* vertexDataArray){
+struct Vector2 getOutwardFacingEdgeNormal(struct Vector2 *edgeVector) {
+    struct Vector2 outwardFacingNormal = {-edgeVector->y, edgeVector->x};
+    return outwardFacingNormal;
+}
+
+struct Vector2 getInwardFacingEdgeNormal(struct Vector2 *edgeVector) {
+    struct Vector2 inwardFacingNormal = {edgeVector->y, -edgeVector->x};
+    return inwardFacingNormal;
+}
+
+struct Vector2 scaleVector(struct Vector2 *vector, GLfloat scaler) {
+    struct Vector2 result = {vector->x * scaler, vector->y * scaler};
+    return result;
+}
+
+struct Vector2 addVectors(struct Vector2 *v1, struct Vector2 *v2) {
+    struct Vector2 result = {v1->x + v2->x, v1->y + v2->y};
+    return result;
+}
+
+struct Vector2 subtractVectors(struct Vector2 *v1, struct Vector2 *v2) {
+    struct Vector2 result = {v1->x - v2->x, v1->y - v2->y};
+    return result;
+}
+
+struct Vector2 multiplyVectors(struct Vector2 *v1, struct Vector2 *v2) {
+    struct Vector2 result;
+    result.x = v1->x * v2->x;
+    result.y = v1->y * v2->y;
+    return result;
+}
+
+GLfloat dotProduct(struct Vector2 *v1, struct Vector2 *v2) {
+    return v1->x * v2->x + v1->y * v2->y;
+}
+
+struct Vector2 projectVertexToLine(struct Vector2 *point, struct Vector2 *line) { 
+    GLfloat lineMagnitude = getMagnitude(line);
+    GLfloat divisor = lineMagnitude * lineMagnitude;
+    GLfloat scaler = dotProduct(point, line) / divisor;
+    return scaleVector(line, scaler);
+}
+
+struct Vector2 *getPointsFromGlData(GLfloat* glData, size_t vertexCount, unsigned int stride) {
+    struct Vector2 *results = (struct Vector2*) malloc(vertexCount * sizeof(struct Vector2));
+    for(size_t currentVertex = 0; currentVertex < vertexCount; currentVertex++) {
+        struct Vector2 currentPoint;
+        currentPoint.x = glData[currentVertex * stride + VECTOR_X];
+        currentPoint.y = glData[currentVertex * stride + VECTOR_Y];
+        results[currentVertex] = currentPoint;
+    }
+    return results;
+}
+
+void resetTriangleVertices(GLfloat* vertexBufferData){
     GLfloat defaultTriangleVertices[] = { //TODO: Remove this and make it dynamic somehow
-        -0.25f, -0.144f, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f,    // bottom-left
-        -0.25f, 0.144f, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f,   // top-left  
-        0.25f, 0.0f, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f,  // tip-right
+        -0.25f, -0.144f, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f, 0xff,   // bottom-left
+        -0.25f, 0.144f, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f, 0xff,   // top-left  
+        0.25f, 0.0f, 0.0f, 0x1f/256.0f, 0x67/256.0f, 0xe0/256.0f, 0xff  // tip-right
     };
 
     for(size_t currentVertex = 0; currentVertex < VERTS_IN_TRIANGLE; currentVertex++){
-        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + VECTOR_X] = defaultTriangleVertices[currentVertex * FLOATS_IN_VERTEX + VECTOR_X];
-        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + VECTOR_Y] = defaultTriangleVertices[currentVertex * FLOATS_IN_VERTEX + VECTOR_Y];
-        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + VECTOR_Z] = defaultTriangleVertices[currentVertex * FLOATS_IN_VERTEX + VECTOR_Z];
-        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + COLOR_R] = defaultTriangleVertices[currentVertex * FLOATS_IN_VERTEX + COLOR_R];
-        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + COLOR_G] = defaultTriangleVertices[currentVertex * FLOATS_IN_VERTEX + COLOR_G];
-        vertexDataArray[currentVertex * FLOATS_IN_VERTEX + COLOR_B] = defaultTriangleVertices[currentVertex * FLOATS_IN_VERTEX + COLOR_B];
+        vertexBufferData[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_X] = defaultTriangleVertices[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_X];
+        vertexBufferData[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_Y] = defaultTriangleVertices[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_Y];
+        vertexBufferData[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_Z] = defaultTriangleVertices[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_Z];
+        vertexBufferData[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + FLOATS_IN_POINT + COLOR_R] = defaultTriangleVertices[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + FLOATS_IN_POINT + COLOR_R];
+        vertexBufferData[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + FLOATS_IN_POINT + COLOR_G] = defaultTriangleVertices[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + FLOATS_IN_POINT + COLOR_G];
+        vertexBufferData[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + FLOATS_IN_POINT + COLOR_B] = defaultTriangleVertices[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + FLOATS_IN_POINT + COLOR_B];
+        vertexBufferData[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + FLOATS_IN_POINT + COLOR_A] = defaultTriangleVertices[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + FLOATS_IN_POINT + COLOR_A]; 
     }
-}
-
-struct Color* getTriangleVertexColorsFromColor(struct Color color) {
-    struct Color* vertexColors = malloc(VERTS_IN_TRIANGLE * sizeof(struct Color));
-    for(size_t currentVertex = 0; currentVertex < VERTS_IN_TRIANGLE; currentVertex++) {
-        vertexColors[currentVertex].red = color.red;
-        vertexColors[currentVertex].green = color.green;
-        vertexColors[currentVertex].blue = color.blue;
-    }
-    return vertexColors;
 }
 
 void setTriangleVertexColorsFromColor(GLfloat* vertexBufferData, struct Color color){
     for(size_t currentVertex = 0; currentVertex < VERTS_IN_TRIANGLE; currentVertex++){
-        vertexBufferData[currentVertex * FLOATS_IN_VERTEX + COLOR_R] = color.red;
-        vertexBufferData[currentVertex * FLOATS_IN_VERTEX + COLOR_G] = color.green;
-        vertexBufferData[currentVertex * FLOATS_IN_VERTEX + COLOR_B] = color.blue;
+        vertexBufferData[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + FLOATS_IN_POINT + COLOR_R] = color.red;
+        vertexBufferData[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + FLOATS_IN_POINT + COLOR_G] = color.green;
+        vertexBufferData[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + FLOATS_IN_POINT + COLOR_B] = color.blue;
     }
 }
 
 void setTriangleVertexColorsFromColors(GLfloat* vertexBufferData, struct Color* colors){
     for(size_t currentVertex = 0; currentVertex < VERTS_IN_TRIANGLE; currentVertex++) {
-        vertexBufferData[currentVertex * FLOATS_IN_VERTEX + COLOR_R] = colors[currentVertex].red;
-        vertexBufferData[currentVertex * FLOATS_IN_VERTEX + COLOR_G] = colors[currentVertex].green;
-        vertexBufferData[currentVertex * FLOATS_IN_VERTEX + COLOR_B] = colors[currentVertex].blue;
+        vertexBufferData[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + FLOATS_IN_POINT + COLOR_R] = colors[currentVertex].red;
+        vertexBufferData[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + FLOATS_IN_POINT + COLOR_G] = colors[currentVertex].green;
+        vertexBufferData[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + FLOATS_IN_POINT + COLOR_B] = colors[currentVertex].blue;
     }
 }
 
 GLfloat* getTriangleVertices(struct Vector2 position, GLfloat orientation){
-    GLfloat* vertexDataArray = malloc(VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat));
-    resetTriangleVertices(vertexDataArray);
-    rotateVertexArray(vertexDataArray, VERTS_IN_TRIANGLE, orientation, FLOATS_IN_VERTEX);
-    translateVertexArray(vertexDataArray, VERTS_IN_TRIANGLE, &position, FLOATS_IN_VERTEX);
-    return vertexDataArray;
+    GLfloat* vertexDataBuffer = malloc(VERTS_IN_TRIANGLE * (FLOATS_IN_POINT + FLOATS_IN_COLOR) * sizeof(GLfloat));
+    resetTriangleVertices(vertexDataBuffer);
+    rotateVertexArray(vertexDataBuffer, VERTS_IN_TRIANGLE, orientation, (FLOATS_IN_POINT + FLOATS_IN_COLOR));
+    translateVertexArray(vertexDataBuffer, VERTS_IN_TRIANGLE, &position, (FLOATS_IN_POINT + FLOATS_IN_COLOR));
+    return vertexDataBuffer;
 }
 
 struct GlObjectDataSet getTriangle(struct Vector2 center, GLfloat orientation) {
     struct GlObjectDataSet glData;
     glData.vertexCount = VERTS_IN_TRIANGLE;
-    glData.vertexDataBufferSize = VERTS_IN_TRIANGLE * FLOATS_IN_VERTEX * sizeof(GLfloat);
+    glData.vertexDataBufferSize = VERTS_IN_TRIANGLE * (FLOATS_IN_POINT + FLOATS_IN_COLOR) * sizeof(GLfloat);
     glData.vertexDataBuffer = getTriangleVertices(center, orientation);
     glData.primitiveType = GL_TRIANGLES;
     return glData;
@@ -512,8 +617,8 @@ void updateShipThrust(struct Spaceship *ship, GLfloat buttonForce, double deltaT
 
 void updateThrustTriangle(struct Spaceship *ship) {
     struct Vector2 baseCenter;
-    baseCenter.x = (ship->bodyGlData.vertexDataBuffer[TRIANGLE_VERTEX_LEFT + VECTOR_X] + ship->bodyGlData.vertexDataBuffer[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + VECTOR_X]) / 2.0f;
-    baseCenter.y = (ship->bodyGlData.vertexDataBuffer[TRIANGLE_VERTEX_LEFT + VECTOR_Y] + ship->bodyGlData.vertexDataBuffer[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + VECTOR_Y]) / 2.0f;
+    baseCenter.x = (ship->bodyGlData.vertexDataBuffer[TRIANGLE_VERTEX_LEFT + VECTOR_X] + ship->bodyGlData.vertexDataBuffer[TRIANGLE_VERTEX_RIGHT * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_X]) / 2.0f;
+    baseCenter.y = (ship->bodyGlData.vertexDataBuffer[TRIANGLE_VERTEX_LEFT + VECTOR_Y] + ship->bodyGlData.vertexDataBuffer[TRIANGLE_VERTEX_RIGHT * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_Y]) / 2.0f;
     
     struct Vector2 thrustDirection = getDirection(&ship->position, &baseCenter);
     normalize(&thrustDirection);
@@ -521,17 +626,17 @@ void updateThrustTriangle(struct Spaceship *ship) {
 
     struct Vector2 triangleBaseDirection = getPerpendicularVector(thrustDirection);
     
-    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_LEFT * FLOATS_IN_VERTEX + VECTOR_X] = baseCenter.x + triangleBaseDirection.x * THRUST_TRIANGLE_BASE_WIDTH;
-    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_LEFT * FLOATS_IN_VERTEX + VECTOR_Y] = baseCenter.y + triangleBaseDirection.y * THRUST_TRIANGLE_BASE_WIDTH;
-    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_LEFT * FLOATS_IN_VERTEX + VECTOR_Z] = 0.0f;
+    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_LEFT * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_X] = baseCenter.x + triangleBaseDirection.x * THRUST_TRIANGLE_BASE_WIDTH;
+    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_LEFT * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_Y] = baseCenter.y + triangleBaseDirection.y * THRUST_TRIANGLE_BASE_WIDTH;
+    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_LEFT * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_Z] = 0.0f;
     
-    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + VECTOR_X] = baseCenter.x - triangleBaseDirection.x * THRUST_TRIANGLE_BASE_WIDTH;
-    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + VECTOR_Y] = baseCenter.y - triangleBaseDirection.y * THRUST_TRIANGLE_BASE_WIDTH;
-    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_RIGHT * FLOATS_IN_VERTEX + VECTOR_Z] = 0.0f;
+    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_RIGHT * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_X] = baseCenter.x - triangleBaseDirection.x * THRUST_TRIANGLE_BASE_WIDTH;
+    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_RIGHT * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_Y] = baseCenter.y - triangleBaseDirection.y * THRUST_TRIANGLE_BASE_WIDTH;
+    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_RIGHT * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_Z] = 0.0f;
 
-    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_MIDDLE * FLOATS_IN_VERTEX + VECTOR_X] = baseCenter.x + tipExtend * thrustDirection.x;
-    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_MIDDLE * FLOATS_IN_VERTEX + VECTOR_Y] = baseCenter.y + tipExtend * thrustDirection.y;
-    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_MIDDLE * FLOATS_IN_VERTEX + VECTOR_Z] = 0.0f;
+    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_MIDDLE * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_X] = baseCenter.x + tipExtend * thrustDirection.x;
+    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_MIDDLE * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_Y] = baseCenter.y + tipExtend * thrustDirection.y;
+    ship->thrustTriangleGlData.vertexDataBuffer[TRIANGLE_VERTEX_MIDDLE * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_Z] = 0.0f;
 }
 
 void applyGravity(struct Planet *planet, struct Spaceship *ship, double deltaTime){
@@ -554,8 +659,8 @@ void applyGravity(struct Planet *planet, struct Spaceship *ship, double deltaTim
 
 void applyShipPositionAndOrientation(struct Spaceship *ship){
     resetTriangleVertices(ship->bodyGlData.vertexDataBuffer);
-    rotateVertexArray(ship->bodyGlData.vertexDataBuffer, VERTS_IN_TRIANGLE, ship->orientation, FLOATS_IN_VERTEX);
-    translateVertexArray(ship->bodyGlData.vertexDataBuffer, VERTS_IN_TRIANGLE, &ship->position, FLOATS_IN_VERTEX);
+    rotateVertexArray(ship->bodyGlData.vertexDataBuffer, VERTS_IN_TRIANGLE, ship->orientation, (FLOATS_IN_POINT + FLOATS_IN_COLOR));
+    translateVertexArray(ship->bodyGlData.vertexDataBuffer, VERTS_IN_TRIANGLE, &ship->position, (FLOATS_IN_POINT + FLOATS_IN_COLOR));
 }
 
 //OpenGL wrapper functions
@@ -591,16 +696,26 @@ void makeGlObject(struct GlObjectDataSet *vds){
 
 void makeDefaultShaderObject(struct GlObjectDataSet *vds){
     makeGlObject(vds);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*) 0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_TRUE, 6 * sizeof(float), (void*) (3*sizeof(float)));
+    glVertexAttribPointer(0, FLOATS_IN_POINT, GL_FLOAT, GL_FALSE, (FLOATS_IN_POINT + FLOATS_IN_COLOR) * sizeof(GLfloat), (void*) 0);
+    glVertexAttribPointer(1, FLOATS_IN_COLOR, GL_FLOAT, GL_TRUE, (FLOATS_IN_POINT + FLOATS_IN_COLOR) * sizeof(GLfloat), (void*) (FLOATS_IN_POINT*sizeof(GLfloat)));
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
 }
 
 void makePadShaderObject(struct GlObjectDataSet *vds) {
     makeGlObject(vds);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*) 0);
+    glVertexAttribPointer(0, FLOATS_IN_POINT, GL_FLOAT, GL_FALSE, FLOATS_IN_POINT * sizeof(GLfloat), (void*) 0);
     glEnableVertexAttribArray(0);
+}
+
+void makeTextShaderObject(struct GlObjectDataSet *vds){
+    makeGlObject(vds);
+    glVertexAttribPointer(0, FLOATS_IN_POINT, GL_FLOAT, GL_FALSE, (FLOATS_IN_POINT + 2 * FLOATS_IN_COLOR) * sizeof(GLfloat), (void*) 0);
+    glVertexAttribPointer(1, FLOATS_IN_COLOR, GL_FLOAT, GL_TRUE, (FLOATS_IN_POINT + 2 * FLOATS_IN_COLOR) * sizeof(GLfloat), (void*) (FLOATS_IN_POINT*sizeof(GLfloat)));
+    glVertexAttribPointer(2, FLOATS_IN_COLOR, GL_FLOAT, GL_TRUE, (FLOATS_IN_POINT + 2 * FLOATS_IN_COLOR) * sizeof(GLfloat), (void*) ((FLOATS_IN_POINT + FLOATS_IN_COLOR)*sizeof(GLfloat)));
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
 }
 
 GLuint makeGlShader(const char* source, GLuint type) {
@@ -670,7 +785,7 @@ struct GlObjectDataSet initDefaultGlObject(void){
 }
 
 void deleteGlObject(struct GlObjectDataSet *ods){
-    /*free(ods->vertexDataBuffer);
+    /*free(ods->vertexDataBuffer); //Should I reenable that?
     free(ods->vertexIndexBuffer);*/
     glDeleteVertexArrays(1, &ods->vao);
     glDeleteBuffers(1, &ods->vbo);
@@ -701,8 +816,8 @@ struct Planet makePlanet(struct Vector2 location, GLfloat radius, float mass, st
     planet.glData = initDefaultGlObject();
     planet.glData.primitiveType = GL_TRIANGLE_FAN;
     planet.glData.vertexCount = (PLANET_POLY_COUNT + 2);
-    planet.glData.vertexDataBufferSize = planet.glData.vertexCount * FLOATS_IN_VERTEX * sizeof(GLfloat);
-    planet.glData.vertexDataBuffer = getTrianglefanCircle(location.x, location.y, radius, PLANET_POLY_COUNT, color.red, color.green, color.blue);
+    planet.glData.vertexDataBufferSize = planet.glData.vertexCount * (FLOATS_IN_POINT + FLOATS_IN_COLOR) * sizeof(GLfloat);
+    planet.glData.vertexDataBuffer = getTrianglefanCircle(location, radius, PLANET_POLY_COUNT, color);
     return planet;
 }
 
@@ -743,6 +858,15 @@ struct Pad makePad(struct Planet *parentPlanet, float angle){
     return pad;
 }
 
+struct cbmText makeText(struct Vector2 position, struct Vector2 dimensions, char* cbmChargen, char* text, struct Color textColor, struct Color backgroundColor){
+    struct cbmText cbmstr;
+    cbmstr.position = position;
+    cbmstr.scale = 1.0f;
+    cbmstr.cbmBitmapBytes = cbmBitmapsFromString(cbmChargen, text);
+    cbmstr.glData = getTextRectangle(position, dimensions, textColor, backgroundColor);
+    return cbmstr;
+}
+
 //Debug functions
 void debugFrame(struct Spaceship *playerShip){
     printf("=== FRAME DEBUG ===\n");
@@ -750,69 +874,15 @@ void debugFrame(struct Spaceship *playerShip){
     printf("Ship vertices:\n");
     for(int currentVertex = 0; currentVertex < VERTS_IN_TRIANGLE; currentVertex++) {
         printf("  V%d: (%.3f, %.3f, %.3f)\n", currentVertex,
-            playerShip->bodyGlData.vertexDataBuffer[currentVertex * FLOATS_IN_VERTEX + VECTOR_X],
-            playerShip->bodyGlData.vertexDataBuffer[currentVertex * FLOATS_IN_VERTEX + VECTOR_Y],
-            playerShip->bodyGlData.vertexDataBuffer[currentVertex * FLOATS_IN_VERTEX + VECTOR_Z]
+            playerShip->bodyGlData.vertexDataBuffer[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_X],
+            playerShip->bodyGlData.vertexDataBuffer[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_Y],
+            playerShip->bodyGlData.vertexDataBuffer[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_Z]
         );
     }
 }
-
-struct Vector2 getOutwardFacingEdgeNormal(struct Vector2 *edgeVector) {
-    struct Vector2 outwardFacingNormal = {-edgeVector->y, edgeVector->x};
-    return outwardFacingNormal;
-}
-
-struct Vector2 getInwardFacingEdgeNormal(struct Vector2 *edgeVector) {
-    struct Vector2 inwardFacingNormal = {edgeVector->y, -edgeVector->x};
-    return inwardFacingNormal;
-}
-
-struct Vector2 scaleVector(struct Vector2 *vector, GLfloat scaler) {
-    struct Vector2 result = {vector->x * scaler, vector->y * scaler};
-    return result;
-}
-
-struct Vector2 addVectors(struct Vector2 *v1, struct Vector2 *v2) {
-    struct Vector2 result = {v1->x + v2->x, v1->y + v2->y};
-    return result;
-}
-
-struct Vector2 subtractVectors(struct Vector2 *v1, struct Vector2 *v2) {
-    struct Vector2 result = {v1->x - v2->x, v1->y - v2->y};
-    return result;
-}
-
-struct Vector2 multiplyVectors(struct Vector2 *v1, struct Vector2 *v2) {
-    struct Vector2 result;
-    result.x = v1->x * v2->x;
-    result.y = v1->y * v2->y;
-    return result;
-}
-
-GLfloat dotProduct(struct Vector2 *v1, struct Vector2 *v2) {
-    return v1->x * v2->x + v1->y * v2->y;
-}
-
-struct Vector2 projectVertexToLine(struct Vector2 *point, struct Vector2 *line) { 
-    GLfloat lineMagnitude = getMagnitude(line);
-    GLfloat divisor = lineMagnitude * lineMagnitude;
-    GLfloat scaler = dotProduct(point, line) / divisor;
-    return scaleVector(line, scaler);
-}
-
-struct Vector2 *getPointsFromGlData(GLfloat* glData, size_t vertexCount, unsigned int stride) {
-    struct Vector2 *results = (struct Vector2*) malloc(vertexCount * sizeof(struct Vector2));
-    for(size_t currentVertex = 0; currentVertex < vertexCount; currentVertex++) {
-        struct Vector2 currentPoint;
-        currentPoint.x = glData[currentVertex * stride + VECTOR_X];
-        currentPoint.y = glData[currentVertex * stride + VECTOR_Y];
-        results[currentVertex] = currentPoint;
-    }
-    return results;
-}
  
 _Bool isTriangleCollidingWithCircle(struct Spaceship *triangle, struct Planet *circle) {
-    struct Vector2 *triangleVertices = getPointsFromGlData(triangle->bodyGlData.vertexDataBuffer, VERTS_IN_TRIANGLE, FLOATS_IN_VERTEX);
+    struct Vector2 *triangleVertices = getPointsFromGlData(triangle->bodyGlData.vertexDataBuffer, VERTS_IN_TRIANGLE, (FLOATS_IN_POINT + FLOATS_IN_COLOR));
     for(size_t currentVertex = 0; currentVertex < VERTS_IN_TRIANGLE; currentVertex++) {
         struct Vector2 wayVector = getVectorBetweenPoints(&triangleVertices[currentVertex], &circle->position);
         GLfloat distance = getMagnitude(&wayVector);
@@ -827,7 +897,7 @@ _Bool isTriangleCollidingWithCircle(struct Spaceship *triangle, struct Planet *c
 
 _Bool isTriangleCollidingWithRectangle(struct Spaceship *triangle, struct Pad *rectangle) {
     _Bool result = KHRONOS_TRUE;
-    struct Vector2 *triangleVertices = getPointsFromGlData(triangle->bodyGlData.vertexDataBuffer, VERTS_IN_TRIANGLE, FLOATS_IN_VERTEX);
+    struct Vector2 *triangleVertices = getPointsFromGlData(triangle->bodyGlData.vertexDataBuffer, VERTS_IN_TRIANGLE, (FLOATS_IN_POINT + FLOATS_IN_COLOR));
     struct Vector2 *rectangleVertices = getPointsFromGlData(rectangle->glData.vertexDataBuffer, VERTS_IN_RECTANGLE, FLOATS_IN_POINT);
     struct Vector2 normals[VERTS_IN_TRIANGLE + VERTS_IN_RECTANGLE];
     for(size_t currentEdge = 0; currentEdge < VERTS_IN_TRIANGLE; currentEdge++) {
@@ -855,7 +925,7 @@ _Bool isTriangleCollidingWithRectangle(struct Spaceship *triangle, struct Pad *r
             GLfloat rectangleCurrent = dotProduct(&rectangleVertices[currentVertex], &normals[currentNormal]);
             if(rectangleMax < rectangleCurrent) {
                 rectangleMax = rectangleCurrent;
-            }else if (rectangleMin > rectangleCurrent) {
+            }else if(rectangleMin > rectangleCurrent) {
                 rectangleMin = rectangleCurrent;
             }
         }
@@ -870,6 +940,7 @@ _Bool isTriangleCollidingWithRectangle(struct Spaceship *triangle, struct Pad *r
 }
 
 //Game state variables
+_Bool gameover = KHRONOS_FALSE;
 int main(int argc, char* argv[]){
     int glfwstatus = glfwInit();
     if(!glfwstatus){
@@ -889,7 +960,7 @@ int main(int argc, char* argv[]){
     }
     glfwMakeContextCurrent(window);
 
-   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+   if(!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         printf("Failed to initialize GLAD with GLFW loader\n");
         return -1;
     }
@@ -935,6 +1006,24 @@ int main(int argc, char* argv[]){
     linkGlShaders(padShaderProgram, padVertexShader, padFragmentShader);
     makePadShaderObject(&cssc.glData);
     
+    //Make gameover screen
+    struct Vector2 gameoverTextPosition = {0.0f, 0.0f};
+    struct Vector2 gameoverTextDimensions = {currentWindowWidth, currentWindowHeight};
+    char *c64chargen = loadChargen("cbmchargen/c64.bin");
+    struct Color textColor = {1.0f, 1.0f, 1.0f, 1.0f};
+    struct Color backgroundColor = {0.0f, 1.0f, 0.0f, 1.0f};
+    struct cbmText gameoverText = makeText(gameoverTextPosition, gameoverTextDimensions, c64chargen, "You crashed!", textColor, backgroundColor);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    const char* textVertexShaderSource = readShaderFile("shaders/cbmchar.vert");
+    GLuint textVertexShader = makeGlShader(textVertexShaderSource, GL_VERTEX_SHADER);
+    const char* textFragmentShaderSource = readShaderFile("shaders/cbmchar.frag");
+    GLuint textFragmentShader = makeGlShader(textFragmentShaderSource, GL_FRAGMENT_SHADER);
+    GLuint textShaderProgram = glCreateProgram();
+    linkGlShaders(textShaderProgram, textVertexShader, textFragmentShader);
+    makeTextShaderObject(&gameoverText.glData);
+    
+
     //Unbind the buffers after use
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
@@ -965,12 +1054,12 @@ int main(int argc, char* argv[]){
         glUniform2f(screenSizeDefaultShaderPtr, currentWindowWidth, currentWindowHeight);
         GLuint zoomDefaultShaderPtr = glGetUniformLocation(defaultShaderProgram, "zoom");
         glUniform1f(zoomDefaultShaderPtr, camera.zoom);
-        
+
         //Draw objects using default shaders
         drawGlObject(&playerShip.bodyGlData);
         drawGlObject(&playerShip.thrustTriangleGlData);
         drawGlObject(&paleBlueDot.glData);
-        
+
         //Set pad shader parameters
         glUseProgram(padShaderProgram);
         GLuint cameraPositionPadShaderPtr = glGetUniformLocation(padShaderProgram, "cameraPos");
@@ -1022,16 +1111,27 @@ int main(int argc, char* argv[]){
             applyShipPositionAndOrientation(&playerShip);
             if(isTriangleCollidingWithRectangle(&playerShip, &cssc)){
                 printf("%s\n", "landed!");
+                while(!glfwWindowShouldClose(window)){
+                    sleep(1);
+                    glfwPollEvents();
+                }
                 //Make fuel bar
                 //Refill fuel here
             }else if(isTriangleCollidingWithCircle(&playerShip, &paleBlueDot)){
                 printf("%s\n", "You crashed!");
-                //Make gameover screen
-                //Display gameover screen here
+                glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+                glClear(GL_COLOR_BUFFER_BIT);
+                glUseProgram(textShaderProgram);
+                GLuint screenSizeTextShaderPtr = glGetUniformLocation(textShaderProgram, "screenSize");
+                glUniform2f(screenSizeTextShaderPtr, currentWindowWidth, currentWindowHeight);
+                /*GLuint cbmChargenPtr = glGetUniformLocation(textShaderProgram, "pixels");
+                glUniform1iv(cbmChargenPtr, 2, (GLint*) gameoverText.cbmBitmapBytes);*/
+                drawGlObject(&gameoverText.glData);
+                glfwSwapBuffers(window);
                 while(!glfwWindowShouldClose(window)){
                     sleep(1);
                     glfwPollEvents();
-                } 
+                }
             }
             updateThrustTriangle(&playerShip);
             applyGravity(&paleBlueDot, &playerShip, timeAccumulator);

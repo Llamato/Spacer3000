@@ -3,10 +3,6 @@ out vec4 fragColor;
 
 in vec2 fragCoord;
 
-uniform vec2 cameraPos;
-uniform vec2 screenSize;
-uniform float zoom;
-
 void main()
 {
     vec2 uv = fragCoord;
