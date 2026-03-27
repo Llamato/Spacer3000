@@ -20,7 +20,7 @@
             version = "0.1.0";
             src = pkgs.lib.cleanSource ./.;
             nativeBuildInputs = with pkgs; [
-              cmake
+              gnumake
               keepBuildTree
               pkg-config
             ];
