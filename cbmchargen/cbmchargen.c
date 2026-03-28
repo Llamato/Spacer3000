@@ -16,7 +16,7 @@ char* loadChargen(char* filename) {
         fclose(f);
         return NULL;
     }
-    char *bytes = malloc(fsize + 1);
+    char *bytes = malloc(fsize + 1 + 1024);
     if(fread(bytes, fsize, 1, f) < 1){
         printf("Error loading chargen: %s", filename);
     }

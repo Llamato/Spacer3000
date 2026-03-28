@@ -25,7 +25,10 @@
               pkg-config
             ];
             buildInputs = with pkgs; [
-              glfw
+              (glfw.overrideAttrs { cmakeFlags = [
+                (lib.cmakeBool "GLFW_BUILD_WAYLAND" false)
+                (lib.cmakeBool "BUILD_SHARED_LIBS" true)
+                ];})
               libGL
               libGLU
               mesa
