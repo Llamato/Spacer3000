@@ -1,22 +1,8 @@
 #version 330 core
-layout (location = 0) in vec3 aPos;
-layout (location = 1) in vec4 tColor;
-layout (location = 2) in vec4 bColor;
+layout (location = 0) in vec2 aPos;
 
-out vec2 fragCoord;
-out vec4 textColor;
-out vec4 backgroundColor;
-
-uniform vec2 iResolution;
-uniform bool pixels[16];
-
-void main()
-{
-    float aspect = iResolution.x / iResolution.y;
-    vec2 aaPos = aPos.xy;
-    aaPos.x /= aspect;
-    gl_Position = vec4(aPos.xy, aPos.z, 1.0);
-    fragCoord = aPos.xy;
-    textColor = tColor;
-    backgroundColor = bColor;
+void main() {
+    // Pass the vertex position directly to gl_Position
+    // Assumes aPos is already in Normalized Device Coordinates (NDC) range [-1, 1]
+    gl_Position = vec4(aPos, 0.0, 1.0);
 }

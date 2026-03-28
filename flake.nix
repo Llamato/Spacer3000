@@ -10,6 +10,7 @@
         "aarch64-darwin"
         "armv7l-linux"
       ];
+
       forAllSystems = nixpkgs.lib.genAttrs systems;
       pkgsFor = system: import nixpkgs { inherit system; };
     in {
@@ -24,11 +25,12 @@
               keepBuildTree
               pkg-config
             ];
+
             buildInputs = with pkgs; [
               (glfw.overrideAttrs { cmakeFlags = [
                 (lib.cmakeBool "GLFW_BUILD_WAYLAND" false)
                 (lib.cmakeBool "BUILD_SHARED_LIBS" true)
-                ];})
+              ];})
               libGL
               libGLU
               mesa
@@ -36,10 +38,12 @@
               xorg.libX11
               libc
             ];
+
             installPhase = ''
               mkdir -p $out/bin
               cp build/spacer3000 $out/bin/
             '';
+            
             meta = with pkgs.lib; {
               description = "An OpenGL native space trading game";
               homepage = "http://www.github.com/Llamato/Spacer3000";

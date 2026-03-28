@@ -1,7 +1,5 @@
 #version 330 core
 in vec2 fragCoord;
-in vec4 textColor;
-in vec4 backgroundColor;
 
 uniform int packedPixels[2];
 
