@@ -6,7 +6,6 @@ build/spacer3000
 build/Debug/main.o
 build/spacer3000
 glad/glad.o
-
 .idea/.gitignore
 .idea/editor.xml
 .idea/modules.xml
@@ -14,3 +13,9 @@ glad/glad.o
 .idea/vcs.xml
 .vscode/
 .cache/
+result
+.direnv/flake-profile
+.direnv/flake-profile-1-link
+build/graphics.rdc
+build/nographics.rdc
+cbmchargen/cbmchargen.o
