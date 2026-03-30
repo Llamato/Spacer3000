@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 
 // unix specific
@@ -13,19 +14,25 @@
 // cbmChargen
 #include "cbmchargen/cbmchargen.h"
 
+//Filepaths
+#define DEFAULT_VERTEX_SHADER_FILENAME "shaders/default.vert"
+#define DEFAULT_FRAGMENT_SHADER_FILENAME "shaders/default.frag"
+#define PAD_VERTEX_SHADER_FILENAME "shaders/pad.vert"
+#define PAD_FRAGMENT_SHADER_FILENAME "shaders/pad.frag"
+#define TEXT_VERTEX_SHADER_FILENAME "shaders/cbmchar.vert"
+#define TEXT_FRAGMENT_SHADER_FILENAME "shaders/cbmcharunpacked.frag"
+#define CBM_CHARGEN_FILENAME "c64.bin"
+
 // Debug!!!
 #define DEBUG 0
-
 #if DEBUG == 1
     #define DEBUG_MEMORY_ADITIVE 1024
 #endif 
-
 #if DEBUG == 0
     #define DEBUG_MEMORY_ADITIVE 0
 #endif
-
 #ifndef DEBUG
-    #define DEBUGDEBUG_MEMORY_ADITIVE 0
+    #define DEBUG_MEMORY_ADITIVE 0
 #endif
 
 // OpenGL specific definitions
@@ -160,6 +167,7 @@ struct Camera {
 };
 
 struct Spaceship {
+
   // Physical Data
   struct Vector2 position;
   struct Vector2 velocity;
@@ -175,6 +183,7 @@ struct Spaceship {
 };
 
 struct Planet {
+
   // Physical Data
   struct Vector2 position;
   GLfloat radius;
@@ -194,7 +203,11 @@ struct Pad {
 struct cbmText {
   struct Vector2 position;
   float scale;
-  char *cbmBitmapBytes;
+
+  char *cbmChargenBytes;
+  char *petsciiString;
+  char *screenCodeString;
+
   struct GlObjectDataSet glData;
 };
 
@@ -221,6 +234,21 @@ void printGlError(GLuint errorcode, unsigned int step) {
   }
 }
 
+// Debug functions
+void debugFrame(struct Spaceship *playerShip) {
+  printf("=== FRAME DEBUG ===\n");
+  printf("Ship position: (%.3f, %.3f)\n", playerShip->position.x, playerShip->position.y);
+  printf("Ship vertices:\n");
+  for (int currentVertex = 0; currentVertex < VERTS_IN_TRIANGLE; currentVertex++) {
+    printf(
+        "V%d: (%.3f, %.3f, %.3f)\n", currentVertex,
+        playerShip->bodyGlData.vertexDataBuffer[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_X],
+        playerShip->bodyGlData.vertexDataBuffer[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_Y],
+        playerShip->bodyGlData.vertexDataBuffer[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_Z]
+      );
+  }
+}
+
 void printVertexArray(GLfloat *vertexDataArray, size_t vertexCount, unsigned int stride) {
   printf("x\ty\tz\n");
   for (int currentVertex = 0; currentVertex < vertexCount; currentVertex++) {
@@ -228,6 +256,7 @@ void printVertexArray(GLfloat *vertexDataArray, size_t vertexCount, unsigned int
   }
 }
 
+// IO functions
 char *readShaderFile(const char *filename) {
   FILE *f = fopen(filename, "rb");
   if (f == NULL)
@@ -250,6 +279,8 @@ char *readShaderFile(const char *filename) {
   return string;
 }
 
+
+// Math functions
 GLfloat gabsf(GLfloat value) { 
   return value < 0.0f ? value * -1.0f : value; 
 }
@@ -295,8 +326,7 @@ void scaleVertexDataArray(GLfloat *dataArray, size_t vertexCount, GLfloat scale,
   }
 }
 
-struct Vector2
-getTriangleMiddleFromVertexPositions(struct Vector2 vertex0Position, struct Vector2 vertex1Position, struct Vector2 vertex2Position) {
+struct Vector2 getTriangleMiddleFromVertexPositions(struct Vector2 vertex0Position, struct Vector2 vertex1Position, struct Vector2 vertex2Position) {
   struct Vector2 middle;
   middle.x = (vertex0Position.x + vertex1Position.x + vertex2Position.x) / 3.0f;
   middle.y = (vertex0Position.y + vertex1Position.y + vertex2Position.y) / 3.0f;
@@ -948,7 +978,8 @@ struct Pad makePad(struct Planet *parentPlanet, float angle) {
 
 struct cbmText makeText(struct Vector2 position, struct Vector2 dimensions, char *cbmChargen, char *text, struct Color textColor, struct Color backgroundColor) {
   struct cbmText cbmstr;
-  cbmstr.position = position;
+
+  /*cbmstr.position = position;
   cbmstr.scale = 1.0f;
   cbmstr.cbmBitmapBytes = cbmBitmapsFromString(cbmChargen, text);
 
@@ -957,25 +988,13 @@ struct cbmText makeText(struct Vector2 position, struct Vector2 dimensions, char
       printf("%#08x ", cbmstr.cbmBitmapBytes[currentByte]);
     }
     printf("\n");
-  #endif
+  #endif*/
 
+  cbmstr.cbmChargenBytes = cbmChargen;
+  cbmstr.petsciiString = asciiStringToPetsciiString(text); 
+  cbmstr.screenCodeString = petsciiStringToScreencodeString(cbmstr.petsciiString);
   cbmstr.glData = getTextRectangle(position, dimensions, textColor, backgroundColor);
   return cbmstr;
-}
-
-// Debug functions
-void debugFrame(struct Spaceship *playerShip) {
-  printf("=== FRAME DEBUG ===\n");
-  printf("Ship position: (%.3f, %.3f)\n", playerShip->position.x, playerShip->position.y);
-  printf("Ship vertices:\n");
-  for (int currentVertex = 0; currentVertex < VERTS_IN_TRIANGLE; currentVertex++) {
-    printf(
-        "V%d: (%.3f, %.3f, %.3f)\n", currentVertex,
-        playerShip->bodyGlData.vertexDataBuffer[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_X],
-        playerShip->bodyGlData.vertexDataBuffer[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_Y],
-        playerShip->bodyGlData.vertexDataBuffer[currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR) + VECTOR_Z]
-      );
-  }
 }
 
 _Bool isTriangleCollidingWithCircle(struct Spaceship *triangle, struct Planet *circle) {
@@ -1087,9 +1106,9 @@ int main(int argc, char *argv[]) {
   struct Spaceship playerShip = makeShip(initialPlayerShipPosition, SHIP_INITIAL_ORIENTATION, initialPlayerShipVelocity, playerShipColor);
 
   // Setup default shader and assign to objects
-  const char *defaultVertexShaderSource = readShaderFile("shaders/default.vert");
+  const char *defaultVertexShaderSource = readShaderFile(DEFAULT_VERTEX_SHADER_FILENAME);
   GLuint defaultVertexShader = makeGlShader(defaultVertexShaderSource, GL_VERTEX_SHADER);
-  const char *defaultFragmentShaderSource = readShaderFile("shaders/default.frag");
+  const char *defaultFragmentShaderSource = readShaderFile(DEFAULT_FRAGMENT_SHADER_FILENAME);
   GLuint defaultFragmentShader = makeGlShader(defaultFragmentShaderSource, GL_FRAGMENT_SHADER);
   GLuint defaultShaderProgram = glCreateProgram();
   linkGlShaders(defaultShaderProgram, defaultVertexShader,defaultFragmentShader);
@@ -1099,11 +1118,9 @@ int main(int argc, char *argv[]) {
 
   // Setup pad shader and assign to objects
   const char *padVertexShaderSource = readShaderFile("shaders/pad.vert");
-  GLuint padVertexShader =
-      makeGlShader(padVertexShaderSource, GL_VERTEX_SHADER);
+  GLuint padVertexShader = makeGlShader(padVertexShaderSource, GL_VERTEX_SHADER);
   const char *padFragmentShaderSource = readShaderFile("shaders/pad.frag");
-  GLuint padFragmentShader =
-      makeGlShader(padFragmentShaderSource, GL_FRAGMENT_SHADER);
+  GLuint padFragmentShader = makeGlShader(padFragmentShaderSource, GL_FRAGMENT_SHADER);
   GLuint padShaderProgram = glCreateProgram();
   linkGlShaders(padShaderProgram, padVertexShader, padFragmentShader);
   makePadShaderObject(&cssc.glData);
@@ -1111,15 +1128,16 @@ int main(int argc, char *argv[]) {
   // Make gameover screen
   struct Vector2 gameoverTextPosition = {-0.0f, -0.0f};
   struct Vector2 gameoverTextDimensions = {1,1};
-  char *c64chargen = loadChargen("cbmchargen/c64.bin");
+  char* c64chargen = loadChargen(CBM_CHARGEN_FILENAME);
   struct Color textColor = {1.0f, 1.0f, 1.0f, 1.0f};
   struct Color backgroundColor = {0.0f, 1.0f, 0.0f, 1.0f};
   struct cbmText gameoverText = makeText(gameoverTextPosition, gameoverTextDimensions, c64chargen,"You crashed!", textColor, backgroundColor);
+
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
-  const char *textVertexShaderSource = readShaderFile("shaders/cbmchar.vert");
+  const char *textVertexShaderSource = readShaderFile(TEXT_VERTEX_SHADER_FILENAME);
   GLuint textVertexShader = makeGlShader(textVertexShaderSource, GL_VERTEX_SHADER);
-  const char *textFragmentShaderSource = readShaderFile("shaders/cbmcharunpacked.frag");
+  const char *textFragmentShaderSource = readShaderFile(TEXT_FRAGMENT_SHADER_FILENAME);
   GLuint textFragmentShader = makeGlShader(textFragmentShaderSource, GL_FRAGMENT_SHADER);
   GLuint textShaderProgram = glCreateProgram();
   linkGlShaders(textShaderProgram, textVertexShader, textFragmentShader);
@@ -1136,7 +1154,6 @@ int main(int argc, char *argv[]) {
 
   while (!glfwWindowShouldClose(window)) {
     if (!windowIsFocused) {
-      sleep(250);
       glfwPollEvents();
       continue;
     }
@@ -1149,16 +1166,11 @@ int main(int argc, char *argv[]) {
 
     // Set default shader parameters
     glUseProgram(defaultShaderProgram);
-    GLuint cameraPositionDefaultShaderPtr =
-        glGetUniformLocation(defaultShaderProgram, "cameraPos");
-    glUniform2f(cameraPositionDefaultShaderPtr, camera.position.x,
-                camera.position.y);
-    GLuint screenSizeDefaultShaderPtr =
-        glGetUniformLocation(defaultShaderProgram, "screenSize");
-    glUniform2f(screenSizeDefaultShaderPtr, currentWindowWidth,
-                currentWindowHeight);
-    GLuint zoomDefaultShaderPtr =
-        glGetUniformLocation(defaultShaderProgram, "zoom");
+    GLuint cameraPositionDefaultShaderPtr = glGetUniformLocation(defaultShaderProgram, "cameraPos");
+    glUniform2f(cameraPositionDefaultShaderPtr, camera.position.x,camera.position.y);
+    GLuint screenSizeDefaultShaderPtr = glGetUniformLocation(defaultShaderProgram, "screenSize");
+    glUniform2f(screenSizeDefaultShaderPtr, currentWindowWidth,currentWindowHeight);
+    GLuint zoomDefaultShaderPtr = glGetUniformLocation(defaultShaderProgram, "zoom");
     glUniform1f(zoomDefaultShaderPtr, camera.zoom);
 
     // Draw objects using default shaders
@@ -1168,14 +1180,10 @@ int main(int argc, char *argv[]) {
 
     // Set pad shader parameters
     glUseProgram(padShaderProgram);
-    GLuint cameraPositionPadShaderPtr =
-        glGetUniformLocation(padShaderProgram, "cameraPos");
-    glUniform2f(cameraPositionPadShaderPtr, camera.position.x,
-                camera.position.y);
-    GLuint screenSizePadShaderPtr =
-        glGetUniformLocation(padShaderProgram, "screenSize");
-    glUniform2f(screenSizePadShaderPtr, currentWindowWidth,
-                currentWindowHeight);
+    GLuint cameraPositionPadShaderPtr = glGetUniformLocation(padShaderProgram, "cameraPos");
+    glUniform2f(cameraPositionPadShaderPtr, camera.position.x,camera.position.y);
+    GLuint screenSizePadShaderPtr = glGetUniformLocation(padShaderProgram, "screenSize");
+    glUniform2f(screenSizePadShaderPtr, currentWindowWidth,currentWindowHeight);
     GLuint zoomPadShaderPtr = glGetUniformLocation(padShaderProgram, "zoom");
     glUniform1f(zoomPadShaderPtr, camera.zoom);
 
@@ -1189,6 +1197,7 @@ int main(int argc, char *argv[]) {
     frameTime = gameLoopEndTime - gameLoopStartTime;
     timeAccumulator += frameTime;
     if (timeAccumulator > PHYSICS_TIME_DELTA) {
+
       // Do input handling here
       if (glfwGetKey(window, INCREASE_THRUST_KEY)) {
         updateShipThrust(&playerShip, SHIP_ENGINE_MAX_THRUST,PHYSICS_TIME_DELTA);
@@ -1219,47 +1228,57 @@ int main(int argc, char *argv[]) {
       playerShip.acceleration.x = 0.0f;
       playerShip.acceleration.y = 0.0f;
       applyShipPositionAndOrientation(&playerShip);
-      if (isTriangleCollidingWithRectangle(&playerShip, &cssc)) {
+      if(isTriangleCollidingWithRectangle(&playerShip, &cssc)){
         while (!glfwWindowShouldClose(window)) {
           printf("%s\n", "landed!");
-          sleep(500);
           glfwPollEvents();
         }
 
         // Make fuel bar
         // Refill fuel here
-      } else if (isTriangleCollidingWithCircle(&playerShip, &paleBlueDot)) {
-          printf("Game Over! Showing screen...\n");
-    
-          while (!glfwWindowShouldClose(window)) {
-            gameLoopEndTime = glfwGetTime();
-            frameTime = gameLoopEndTime - gameLoopStartTime;
-            timeAccumulator += frameTime;
-            glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-            glClear(GL_COLOR_BUFFER_BIT);
-            glUseProgram(textShaderProgram);
-            GLuint resolutionUniform = glGetUniformLocation(textShaderProgram, "iResolution");
-            if(resolutionUniform != -1) {
-              glUniform2f(resolutionUniform, (float)currentWindowWidth, (float)currentWindowHeight);
-            } else {
-              printf("%s\n", "iResolution uniform could not be found!");
+      }else if(isTriangleCollidingWithCircle(&playerShip, &paleBlueDot)){
+        printf("Game Over! Showing screen...\n");
+        uint8_t currentCharacterIndex = 0;
+        while(!glfwWindowShouldClose(window)){
+          gameLoopEndTime = glfwGetTime();
+          frameTime = gameLoopEndTime - gameLoopStartTime;
+          timeAccumulator += frameTime;
+          glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+          glClear(GL_COLOR_BUFFER_BIT);
+          glUseProgram(textShaderProgram);
+          GLuint resolutionUniform = glGetUniformLocation(textShaderProgram, "iResolution");
+          if(resolutionUniform != -1){
+            glUniform2f(resolutionUniform, (float)currentWindowWidth, (float)currentWindowHeight);
+          }else{
+            printf("%s\n", "iResolution uniform could not be found!");
+          }
+
+          GLuint chargenUniform = glGetUniformLocation(textShaderProgram, "chargen");
+          if(chargenUniform != -1){
+            GLuint intBytes[CBM_CHARGEN_SIZE];
+            for(int currentByte = 0; currentByte < CBM_CHARGEN_SIZE; currentByte++){
+              intBytes[currentByte] = c64chargen[currentByte];
             }
-            /*GLuint timeUniform = glGetUniformLocation(textShaderProgram, "iTime");
-            if(timeUniform != -1) {
-              glUniform1f(timeUniform, timeAccumulator);
-            } else {
-              printf("%s\n", "iTime uniform could not be found!");
-            }
-            #if DEBUG == 1
-              printf("TimeAccumulator: %.2f\n", timeAccumulator);
-            #endif*/
-            drawGlObject(&gameoverText.glData);
-            glfwSwapBuffers(window);
-            if(glfwGetKey(window, GLFW_KEY_SPACE)) {
-                break;
-            }
-            glfwPollEvents();
-            
+            glUniform1uiv(chargenUniform, CBM_CHARGEN_SIZE, intBytes);
+          }else{
+            printf("%s\n", "chargenUniform could not be found!");
+          }
+
+          GLuint petsciiCodeUniform = glGetUniformLocation(textShaderProgram, "petsciicode");
+          if(petsciiCodeUniform != -1){
+            glUniform1ui(petsciiCodeUniform, (GLuint)currentCharacterIndex);
+            currentCharacterIndex++;
+          }else{
+            printf("%s\n", "petsciiCodeUniform could not be found!");
+          }
+
+          drawGlObject(&gameoverText.glData);
+          glfwSwapBuffers(window);
+          sleep(1);
+          if(glfwGetKey(window, GLFW_KEY_SPACE)) {
+              break;
+          }
+          glfwPollEvents();
         }
       }
       updateThrustTriangle(&playerShip);

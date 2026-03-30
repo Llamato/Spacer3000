@@ -1,24 +1,22 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include "cbmchargen.h"
 
 char* loadChargen(char* filename) {
-    FILE *f = fopen(filename, "rb");
-    if(f == NULL)
-        return NULL;
-    fseek(f, 0, SEEK_END);
-
-    long fsize = ftell(f);
-    fseek(f, 0, SEEK_SET);
-
-    if(fsize == 0){
-        fclose(f);
-        return NULL;
+    if(access(filename, F_OK) != 0){
+        printf("Error : %s does not exist\n", filename);
+        return 0;
     }
-    char *bytes = malloc(fsize + 1 + 1024);
-    if(fread(bytes, fsize, 1, f) < 1){
-        printf("Error loading chargen: %s", filename);
+    FILE *f = fopen(filename, "rb");
+    if(f == NULL) {
+        printf("Error opening chargen: %s\n", filename);
+        return (char*)1;
+    }
+    char *bytes = malloc(CBM_CHARGEN_SIZE);
+    if(fread(bytes, 8, 256, f) < 1){
+        printf("Error loading chargen: %s\n", filename);
     }
     fclose(f);
     return bytes;
@@ -29,6 +27,51 @@ char asciiToPetscii(char asciiChar) {
         return asciiChar - '@';
     }
     return asciiChar;
+}
+
+char* asciiStringToPetsciiString(char *asciiString) {
+    unsigned int currentChar = 0;
+    char* petsciiString = malloc((strlen(asciiString)+1) * sizeof(char));
+    while(asciiString[currentChar] != '\0') {
+        petsciiString[currentChar] = asciiToPetscii(asciiString[currentChar]);
+        currentChar++;
+    }
+    petsciiString[currentChar] = '\0';
+    return petsciiString;
+}
+
+char petsciiToScreencode(char petsciiChar) {
+    char screencode;
+    if(petsciiChar < (char) 0x20) {
+        screencode = petsciiChar + 128;
+    }else if(petsciiChar >= (char) 0x20 && petsciiChar < (char) 0x40) {
+        screencode = petsciiChar;
+    }else if(petsciiChar >= (char) 0x40 && petsciiChar < (char) 0x60) {
+        screencode = petsciiChar - 64;
+    }else if(petsciiChar >= (char) 0x60 && petsciiChar < (char) 0x80) {
+        screencode = petsciiChar - 32;
+    }else if(petsciiChar >= (char) 0x80 && petsciiChar < (char) 0xA0) {
+        screencode = petsciiChar + 64;
+    }else if(petsciiChar >= (char) 0xA0 && petsciiChar < (char) 0xC0) {
+        screencode = petsciiChar - 64;
+    }else if(petsciiChar >= (char) 0xC0 && petsciiChar < (char) 0xE0) {
+        screencode = petsciiChar - 128;
+    }else if(petsciiChar >= (char) 0xE0 && petsciiChar < (char) 0xFF) {
+        screencode = petsciiChar - 128;
+    }else if(petsciiChar == (char) 0xFF) {
+        screencode = 0x5E;
+    }
+    return screencode;
+}
+
+char* petsciiStringToScreencodeString(char *petsciiString){
+    unsigned int currentChar = 0;
+    char* screencodeString = malloc((strlen(petsciiString)+1) * sizeof(char));
+    while(petsciiString[currentChar] != '\0') {
+        petsciiString[currentChar] = petsciiToScreencode(petsciiString[currentChar]);
+        currentChar++;
+    }
+    return petsciiString;
 }
 
 void cbmBitmapFromChar(char* returnBucket, char* chargen, char petsciiChar) {
