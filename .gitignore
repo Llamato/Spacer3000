@@ -19,3 +19,10 @@ result
 build/graphics.rdc
 build/nographics.rdc
 cbmchargen/cbmchargen.o
+glibs/common.o
+glibs/gvmath/gvmath.o
+.direnv/flake-profile-a5d5b61aa8a61b7d9d765e1daf971a9a578f1cfa
+.direnv/flake-profile-a5d5b61aa8a61b7d9d765e1daf971a9a578f1cfa.rc
+.direnv/bin/nix-direnv-reload
+.direnv/flake-inputs/rhc5yjxqv754ylc90bsszdykl88349fs-source
+.direnv/flake-inputs/x5k5bz6pf9scg6rjyi5s7ivvrxmfsdqw-source

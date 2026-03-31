@@ -1,13 +1,20 @@
 #ifndef CBMTOBMP_H
 #define CBMTOBMP_H
     #include <stddef.h>
+    #include "../common.h"
     #define CBM_CHARGEN_SIZE 2048
     #define CBM_CHAR_SIZE 8
     #define CBM_MAX_STRING_LENGTH 255
-    typedef struct {
-        char ascii;
-        char cpmBitmap[8];
-    } cbmChar;
+    struct cbmText {
+        struct Vector2 position;
+        float scale;
+
+        char *cbmChargenBytes;
+        char *petsciiString;
+        char *screenCodeString;
+
+        struct GlObjectDataSet glData;
+    };
     char* loadChargen(char* filename);
     char asciiToPetscii(char asciiChar);
     char petsciiToScreencode(char petsciiChar);

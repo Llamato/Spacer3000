@@ -1,17 +1,16 @@
 #include "glad/glad.h"
 #include "glad/khrplatform.h"
 #include <GLFW/glfw3.h>
-#include <math.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
+#include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 // unix specific
 #include <unistd.h>
-
-// cbmChargen
+#include "glibs/common.h"
+#include "gvmath/gvmath.h"
 #include "cbmchargen/cbmchargen.h"
 
 //Filepaths
@@ -21,7 +20,7 @@
 #define PAD_FRAGMENT_SHADER_FILENAME "shaders/pad.frag"
 #define TEXT_VERTEX_SHADER_FILENAME "shaders/cbmchar.vert"
 #define TEXT_FRAGMENT_SHADER_FILENAME "shaders/cbmcharunpacked.frag"
-#define CBM_CHARGEN_FILENAME "c64.bin"
+#define CBM_CHARGEN_FILENAME "glibs/cbmchargen/c64.bin"
 
 // Debug!!!
 #define DEBUG 0
@@ -56,34 +55,6 @@
 #define KILL_THRUST_KEY GLFW_KEY_H
 #define INCREASE_ZOOM_KEY GLFW_KEY_I
 #define DECREASE_ZOOM_KEY GLFW_KEY_K
-
-// Vector struct format
-#define VECTOR_X 0
-#define VECTOR_Y 1
-#define VECTOR_Z 2
-
-// Color struct format
-#define COLOR_R 0
-#define COLOR_G 1
-#define COLOR_B 2
-#define COLOR_A 3
-
-// Vertex data format
-#define FLOATS_IN_POINT 3
-#define FLOATS_IN_COLOR 4
-
-// Triangle
-#define VERTS_IN_TRIANGLE 3
-#define TRIANGLE_VERTEX_LEFT 0
-#define TRIANGLE_VERTEX_MIDDLE 2
-#define TRIANGLE_VERTEX_RIGHT 1
-
-// Rectangle
-#define VERTS_IN_RECTANGLE 4
-#define BOTTOM_LEFT_VERTEX_INDEX 0
-#define TOP_LEFT_VERTEX_INDEX 1
-#define BOTTOM_RIGHT_VERTEX_INDEX 2
-#define TOP_RIGHT_VERTEX_INDEX 3
 
 // World definitions
 #define GRAVITATIONAL_CONSTANT 0.8f
@@ -126,40 +97,6 @@
 #define THRUST_TRIANGLE_COLOR_G 0.0f
 #define THRUST_TRIANGLE_COLOR_B 0.0f
 
-struct GlObjectDataSet {
-  // Data
-  GLfloat *vertexDataBuffer;
-  GLuint *vertexIndexBuffer;
-
-  // VAO
-  GLuint vao;
-
-  // VBO
-  GLuint vbo;
-  size_t vertexCount;
-  size_t vertexDataBufferSize;
-
-  // IBO
-  GLuint ibo;
-  size_t indexCount;
-
-  // Draw settings
-  GLint primitiveType;
-  GLuint shaderProgram;
-};
-
-struct Vector2 {
-  GLfloat x;
-  GLfloat y;
-};
-
-struct Color {
-  GLfloat red;
-  GLfloat green;
-  GLfloat blue;
-  GLfloat alpha;
-};
-
 struct Camera {
   struct Vector2 position;
   struct Vector2 fieldOfView;
@@ -197,17 +134,6 @@ struct Planet {
 struct Pad {
   float angle;
   struct Planet *parentPlanet;
-  struct GlObjectDataSet glData;
-};
-
-struct cbmText {
-  struct Vector2 position;
-  float scale;
-
-  char *cbmChargenBytes;
-  char *petsciiString;
-  char *screenCodeString;
-
   struct GlObjectDataSet glData;
 };
 
@@ -277,228 +203,6 @@ char *readShaderFile(const char *filename) {
   fclose(f);
   string[fsize] = 0;
   return string;
-}
-
-
-// Math functions
-GLfloat gabsf(GLfloat value) { 
-  return value < 0.0f ? value * -1.0f : value; 
-}
-
-GLfloat max(GLfloat values[], size_t numValues) {
-  GLfloat max = values[0];
-  for (size_t currentValue = 1; currentValue < numValues; currentValue++) {
-    if (max < values[currentValue]) {
-      max = values[currentValue];
-    }
-  }
-  return max;
-}
-
-GLfloat min(GLfloat values[], size_t numValues) {
-  GLfloat min = values[0];
-  for (size_t currentValue = 1; currentValue < numValues; currentValue++) {
-    if (min > values[currentValue]) {
-      min = values[currentValue];
-    }
-  }
-  return min;
-}
-
-GLfloat *combineVertexDataArrays(GLfloat *array1, size_t size1, GLfloat *array2, size_t size2) {
-  size_t combinedSize = size1 + size2;
-  GLfloat *combinedArray = malloc(combinedSize * sizeof(GLfloat) + DEBUG_MEMORY_ADITIVE);
-  for (size_t i = 0; i < size1; i++) {
-    combinedArray[i] = array1[i];
-  }
-  for (size_t i = 0; i < size2; i++) {
-    combinedArray[size1 + i] = array2[i];
-  }
-  return combinedArray;
-}
-
-void scaleVertexDataArray(GLfloat *dataArray, size_t vertexCount, GLfloat scale, unsigned int stride) {
-  for (size_t i = 0; i < vertexCount; i++) {
-    size_t baseIndex = i * stride;
-    dataArray[baseIndex] *= scale;
-    dataArray[baseIndex + 1] *= scale;
-    dataArray[baseIndex + 2] *= scale;
-  }
-}
-
-struct Vector2 getTriangleMiddleFromVertexPositions(struct Vector2 vertex0Position, struct Vector2 vertex1Position, struct Vector2 vertex2Position) {
-  struct Vector2 middle;
-  middle.x = (vertex0Position.x + vertex1Position.x + vertex2Position.x) / 3.0f;
-  middle.y = (vertex0Position.y + vertex1Position.y + vertex2Position.y) / 3.0f;
-  return middle;
-}
-
-GLfloat *getTrianglefanCircle(struct Vector2 center, GLfloat radius, GLint polyCount, struct Color color) {
-  float rotAngle = M_PI * 2.0f / polyCount;
-  GLfloat vertCount = polyCount + 2;
-  GLfloat *circleData = malloc(vertCount * (FLOATS_IN_POINT + FLOATS_IN_COLOR) * sizeof(GLfloat) + DEBUG_MEMORY_ADITIVE);
-
-  circleData[VECTOR_X] = center.x;
-  circleData[VECTOR_Y] = center.y;
-  circleData[VECTOR_Z] = 0.0f;
-  circleData[FLOATS_IN_POINT + COLOR_R] = color.red;
-  circleData[FLOATS_IN_POINT + COLOR_G] = color.green;
-  circleData[FLOATS_IN_POINT + COLOR_B] = color.blue;
-  circleData[FLOATS_IN_POINT + COLOR_A] = color.alpha;
-
-  for (unsigned int currentVertex = 1; currentVertex < vertCount; currentVertex++) {
-    GLfloat currentX = center.x + radius * cosf(rotAngle * currentVertex);
-    GLfloat currentY = center.y + radius * sinf(rotAngle * currentVertex);
-    size_t currentIndex = currentVertex * (FLOATS_IN_POINT + FLOATS_IN_COLOR);
-    circleData[currentIndex + VECTOR_X] = currentX;
-    circleData[currentIndex + VECTOR_Y] = currentY;
-    circleData[currentIndex + VECTOR_Z] = 0.0f;
-    circleData[currentIndex + FLOATS_IN_POINT + COLOR_R] = color.red;
-    circleData[currentIndex + FLOATS_IN_POINT + COLOR_G] = color.green;
-    circleData[currentIndex + FLOATS_IN_POINT + COLOR_B] = color.blue;
-    circleData[currentIndex + FLOATS_IN_POINT + COLOR_A] = color.alpha;
-  }
-  return circleData;
-}
-
-struct GlObjectDataSet getRectangle(struct Vector2 center, struct Vector2 dimensions) {
-  struct GlObjectDataSet rectangle;
-  rectangle.vertexCount = VERTS_IN_RECTANGLE;
-  rectangle.vertexDataBufferSize = rectangle.vertexCount * FLOATS_IN_POINT * sizeof(GLfloat);
-  rectangle.vertexDataBuffer = malloc(rectangle.vertexDataBufferSize + DEBUG_MEMORY_ADITIVE);
-
-  const size_t floatsInVertex = FLOATS_IN_POINT + 2 * FLOATS_IN_COLOR;
-  GLfloat left = center.x - dimensions.x / 2.0f;
-  GLfloat right = center.x + dimensions.x / 2.0f;
-  GLfloat bottom = center.y - dimensions.y / 2.0f;
-  GLfloat top = center.y + dimensions.y / 2.0f;
-
-  rectangle.vertexDataBuffer[BOTTOM_LEFT_VERTEX_INDEX * FLOATS_IN_POINT + VECTOR_X] = left;
-  rectangle.vertexDataBuffer[BOTTOM_LEFT_VERTEX_INDEX * FLOATS_IN_POINT + VECTOR_Y] = bottom;
-  rectangle.vertexDataBuffer[BOTTOM_LEFT_VERTEX_INDEX * FLOATS_IN_POINT + VECTOR_Z] = 0.0f;
-  rectangle.vertexDataBuffer[TOP_LEFT_VERTEX_INDEX * FLOATS_IN_POINT + VECTOR_X] = left;
-  rectangle.vertexDataBuffer[TOP_LEFT_VERTEX_INDEX * FLOATS_IN_POINT + VECTOR_Y] = top;
-  rectangle.vertexDataBuffer[TOP_LEFT_VERTEX_INDEX * FLOATS_IN_POINT + VECTOR_Z] = 0.0f;
-  rectangle.vertexDataBuffer[BOTTOM_RIGHT_VERTEX_INDEX * FLOATS_IN_POINT + VECTOR_X] = right;
-  rectangle.vertexDataBuffer[BOTTOM_RIGHT_VERTEX_INDEX * FLOATS_IN_POINT + VECTOR_Y] = bottom;
-  rectangle.vertexDataBuffer[BOTTOM_RIGHT_VERTEX_INDEX * FLOATS_IN_POINT + VECTOR_Z] = 0.0f;
-  rectangle.vertexDataBuffer[TOP_RIGHT_VERTEX_INDEX * FLOATS_IN_POINT + VECTOR_X] = right;
-  rectangle.vertexDataBuffer[TOP_RIGHT_VERTEX_INDEX * FLOATS_IN_POINT + VECTOR_Y] = top;
-  rectangle.vertexDataBuffer[TOP_RIGHT_VERTEX_INDEX * FLOATS_IN_POINT + VECTOR_Z] = 0.0f;
-  rectangle.indexCount = 6;
-  rectangle.vertexIndexBuffer = malloc(rectangle.indexCount * sizeof(GLuint)) + DEBUG_MEMORY_ADITIVE;
-  rectangle.vertexIndexBuffer[0] = BOTTOM_LEFT_VERTEX_INDEX;
-  rectangle.vertexIndexBuffer[1] = TOP_LEFT_VERTEX_INDEX;
-  rectangle.vertexIndexBuffer[2] = BOTTOM_RIGHT_VERTEX_INDEX;
-  rectangle.vertexIndexBuffer[3] = TOP_LEFT_VERTEX_INDEX;
-  rectangle.vertexIndexBuffer[4] = TOP_RIGHT_VERTEX_INDEX;
-  rectangle.vertexIndexBuffer[5] = BOTTOM_RIGHT_VERTEX_INDEX;
-  rectangle.primitiveType = GL_TRIANGLES;
-  return rectangle;
-}
-
-struct GlObjectDataSet getTextRectangle(struct Vector2 center, struct Vector2 dimensions, struct Color textColor, struct Color backgroundColor) {
-    const size_t floatsInVertex = FLOATS_IN_POINT + 2 * FLOATS_IN_COLOR;
-
-    struct GlObjectDataSet rectangle;
-    rectangle.vertexCount = VERTS_IN_RECTANGLE;
-    rectangle.vertexDataBufferSize = rectangle.vertexCount * floatsInVertex * sizeof(GLfloat);
-    rectangle.vertexDataBuffer = malloc(rectangle.vertexDataBufferSize + DEBUG_MEMORY_ADITIVE);
-
-    GLfloat left = center.x - dimensions.x / 2.0f;
-    GLfloat right = center.x + dimensions.x / 2.0f;
-    GLfloat bottom = center.y - dimensions.y / 2.0f;
-    GLfloat top = center.y + dimensions.y / 2.0f;
-    
-    // Vertex 0: bottom-left
-    rectangle.vertexDataBuffer[BOTTOM_LEFT_VERTEX_INDEX * floatsInVertex + VECTOR_X] = left;
-    rectangle.vertexDataBuffer[BOTTOM_LEFT_VERTEX_INDEX * floatsInVertex + VECTOR_Y] = bottom;
-    rectangle.vertexDataBuffer[BOTTOM_LEFT_VERTEX_INDEX * floatsInVertex + VECTOR_Z] = 0.0f;
-    
-    // Vertex 1: top-left
-    rectangle.vertexDataBuffer[TOP_LEFT_VERTEX_INDEX * floatsInVertex + VECTOR_X] = left;
-    rectangle.vertexDataBuffer[TOP_LEFT_VERTEX_INDEX * floatsInVertex + VECTOR_Y] = top;
-    rectangle.vertexDataBuffer[TOP_LEFT_VERTEX_INDEX * floatsInVertex + VECTOR_Z] = 0.0f;
-    
-    // Vertex 2: bottom-right
-    rectangle.vertexDataBuffer[BOTTOM_RIGHT_VERTEX_INDEX * floatsInVertex + VECTOR_X] = right;
-    rectangle.vertexDataBuffer[BOTTOM_RIGHT_VERTEX_INDEX * floatsInVertex + VECTOR_Y] = bottom;
-    rectangle.vertexDataBuffer[BOTTOM_RIGHT_VERTEX_INDEX * floatsInVertex + VECTOR_Z] = 0.0f;
-    
-    // Vertex 3: top-right
-    rectangle.vertexDataBuffer[TOP_RIGHT_VERTEX_INDEX * floatsInVertex + VECTOR_X] = right;
-    rectangle.vertexDataBuffer[TOP_RIGHT_VERTEX_INDEX * floatsInVertex + VECTOR_Y] = top;
-    rectangle.vertexDataBuffer[TOP_RIGHT_VERTEX_INDEX * floatsInVertex + VECTOR_Z] = 0.0f;
-    
-    // Set colors
-    for (size_t i = 0; i < VERTS_IN_RECTANGLE; i++) {
-      size_t base = i * floatsInVertex;
-      
-      // Text color
-      rectangle.vertexDataBuffer[base + FLOATS_IN_POINT + COLOR_R] = textColor.red;
-      rectangle.vertexDataBuffer[base + FLOATS_IN_POINT + COLOR_G] = textColor.green;
-      rectangle.vertexDataBuffer[base + FLOATS_IN_POINT + COLOR_B] = textColor.blue;
-      rectangle.vertexDataBuffer[base + FLOATS_IN_POINT + COLOR_A] = textColor.alpha;
-      
-      // Background color
-      rectangle.vertexDataBuffer[base + FLOATS_IN_POINT + FLOATS_IN_COLOR + COLOR_R] = backgroundColor.red;
-      rectangle.vertexDataBuffer[base + FLOATS_IN_POINT + FLOATS_IN_COLOR + COLOR_G] = backgroundColor.green;
-      rectangle.vertexDataBuffer[base + FLOATS_IN_POINT + FLOATS_IN_COLOR + COLOR_B] = backgroundColor.blue;
-      rectangle.vertexDataBuffer[base + FLOATS_IN_POINT + FLOATS_IN_COLOR + COLOR_A] = backgroundColor.alpha;
-    }
-    
-    rectangle.indexCount = 6;
-    rectangle.vertexIndexBuffer = malloc(rectangle.indexCount * sizeof(GLuint) + DEBUG_MEMORY_ADITIVE);
-    rectangle.vertexIndexBuffer[0] = 0;
-    rectangle.vertexIndexBuffer[1] = 1;
-    rectangle.vertexIndexBuffer[2] = 2;
-    rectangle.vertexIndexBuffer[3] = 1;
-    rectangle.vertexIndexBuffer[4] = 3;
-    rectangle.vertexIndexBuffer[5] = 2;
-    rectangle.primitiveType = GL_TRIANGLES;
-    
-    return rectangle;
-}
-
-GLfloat getMagnitude(struct Vector2 *vector) {
-  return sqrtf(pow(vector->x, 2) + pow(vector->y, 2));
-}
-
-void normalize(struct Vector2 *vector) {
-  GLfloat magnitude = getMagnitude(vector);
-  if (magnitude > 0.00001f) {
-    vector->x /= magnitude;
-    vector->y /= magnitude;
-  } else {
-    vector->x = 0.0f;
-    vector->y = 0.0f;
-  }
-}
-
-struct Vector2 getVectorBetweenPoints(struct Vector2 *from, struct Vector2 *to) {
-  struct Vector2 wayVector;
-  wayVector.x = to->x - from->x;
-  wayVector.y = to->y - from->y;
-  return wayVector;
-}
-
-GLfloat getDistance(struct Vector2 *from, struct Vector2 *to) {
-  struct Vector2 wayVector = getVectorBetweenPoints(from, to);
-  return gabsf(getMagnitude(&wayVector));
-}
-
-struct Vector2 getDirection(struct Vector2 *from, struct Vector2 *to) {
-  struct Vector2 direction;
-  direction = getVectorBetweenPoints(from, to);
-  normalize(&direction);
-  return direction;
-}
-
-struct Vector2 getPerpendicularVector(struct Vector2 vector) {
-  struct Vector2 parallelVector;
-  parallelVector.x = -vector.y;
-  parallelVector.y = vector.x;
-  return parallelVector;
 }
 
 // Engine variables
