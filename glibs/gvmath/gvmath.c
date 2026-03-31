@@ -26,7 +26,7 @@ GLfloat min(GLfloat values[], size_t numValues) {
 
 GLfloat *combineVertexDataArrays(GLfloat *array1, size_t size1, GLfloat *array2, size_t size2) {
   size_t combinedSize = size1 + size2;
-  GLfloat *combinedArray = malloc(combinedSize * sizeof(GLfloat) + DEBUG_MEMORY_ADITIVE);
+  GLfloat *combinedArray = malloc(combinedSize * sizeof(GLfloat));
   for (size_t i = 0; i < size1; i++) {
     combinedArray[i] = array1[i];
   }
