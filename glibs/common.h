@@ -1,8 +1,10 @@
 #ifndef ENGINE_COMMON_H
 #define ENGINE_COMMON_H
-    #include <stddef.h>
-    #include <stdlib.h>
+    #include "glad/khrplatform.h"
     #include <GLFW/glfw3.h>
+    #include <stddef.h>
+    #include <stdio.h>
+    #include <stdlib.h>
     #include <math.h>
 
     #ifndef VECTOR_X
@@ -97,7 +99,8 @@
         GLuint primitiveType;
         GLuint shaderProgram;
     };
-
+    void printGlError(GLuint errorcode, unsigned int step);
+    void makeGlObject(struct GlObjectDataSet *vds);
     struct GlObjectDataSet getRectangle(struct Vector2 center, struct Vector2 dimensions);
     struct GlObjectDataSet getTextRectangle(struct Vector2 center, struct Vector2 dimensions, struct Color textColor, struct Color backgroundColor);
     GLfloat *getTrianglefanCircle(struct Vector2 center, GLfloat radius, GLint polyCount, struct Color color);

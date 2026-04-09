@@ -12,6 +12,7 @@
 #include "glibs/common.h"
 #include "gvmath/gvmath.h"
 #include "cbmchargen/cbmchargen.h"
+#include "cbmchargen/cbmgraphics.h"
 
 //Filepaths
 #define DEFAULT_VERTEX_SHADER_FILENAME "shaders/default.vert"
@@ -136,29 +137,6 @@ struct Pad {
   struct Planet *parentPlanet;
   struct GlObjectDataSet glData;
 };
-
-void printGlError(GLuint errorcode, unsigned int step) {
-  printf("OpenGL Error: %x in step %u\n", errorcode, step);
-  switch (errorcode) {
-  case GL_INVALID_ENUM:
-    printf("GLenum argument out of range.\n");
-    break;
-  case GL_INVALID_VALUE:
-    printf("Numeric argument out of range.\n");
-    break;
-  case GL_INVALID_OPERATION:
-    printf("Operation illegal in current state.\n");
-    break;
-  case GL_INVALID_FRAMEBUFFER_OPERATION:
-    printf("Invalid frame buffer operation.\n");
-    break;
-  case GL_OUT_OF_MEMORY:
-    printf("Not enough memory left to execute function.\n");
-    break;
-  default:
-    printf("Unknown OpenGL Error.\n");
-  }
-}
 
 // Debug functions
 void debugFrame(struct Spaceship *playerShip) {
@@ -462,43 +440,6 @@ void applyShipPositionAndOrientation(struct Spaceship *ship) {
 }
 
 // OpenGL wrapper functions
-void makeGlObject(struct GlObjectDataSet *vds) {
-  GLenum error = GL_NO_ERROR;
-
-  glGenVertexArrays(1, &vds->vao);
-  if (error = glGetError() != GL_NO_ERROR)
-    printGlError(error, 1);
-
-  glGenBuffers(1, &vds->vbo);
-  if (error = glGetError() != GL_NO_ERROR)
-    printGlError(error, 2);
-
-  glBindVertexArray(vds->vao);
-  if (error = glGetError() != GL_NO_ERROR)
-    printGlError(error, 3);
-
-  glBindBuffer(GL_ARRAY_BUFFER, vds->vbo);
-  if (error = glGetError() != GL_NO_ERROR)
-    printGlError(error, 4);
-
-  glBufferData(GL_ARRAY_BUFFER, vds->vertexDataBufferSize,vds->vertexDataBuffer, GL_DYNAMIC_DRAW);
-  if (error = glGetError() != GL_NO_ERROR)
-    printGlError(error, 5);
-
-  if (vds->indexCount > 0) {
-    glGenBuffers(1, &vds->ibo);
-    if (error = glGetError() != GL_NO_ERROR)
-      printGlError(error, 6);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vds->ibo);
-    if (error = glGetError() != GL_NO_ERROR)
-      printGlError(error, 7);
-
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, vds->indexCount * sizeof(GLuint),vds->vertexIndexBuffer, GL_STATIC_DRAW);
-    if (error = glGetError() != GL_NO_ERROR)
-      printGlError(error, 8);
-  }
-}
 
 void makeDefaultShaderObject(struct GlObjectDataSet *vds) {
   makeGlObject(vds);
@@ -512,24 +453,6 @@ void makePadShaderObject(struct GlObjectDataSet *vds) {
   makeGlObject(vds);
   glVertexAttribPointer(0, FLOATS_IN_POINT, GL_FLOAT, GL_FALSE,FLOATS_IN_POINT * sizeof(GLfloat), (void *)0);
   glEnableVertexAttribArray(0);
-}
-
-void makeTextShaderObject(struct GlObjectDataSet *vds) {
-    makeGlObject(vds);
-  
-  const size_t floatsInVertex = FLOATS_IN_POINT + 2 * FLOATS_IN_COLOR;
-  
-  // Position attribute (location 0)
-  glVertexAttribPointer(0, FLOATS_IN_POINT, GL_FLOAT, GL_FALSE, floatsInVertex * sizeof(GLfloat), (void *)0);
-  glEnableVertexAttribArray(0);
-  
-  // Text color attribute (location 1)
-  glVertexAttribPointer(1, FLOATS_IN_COLOR, GL_FLOAT, GL_TRUE, floatsInVertex * sizeof(GLfloat), (void *)(FLOATS_IN_POINT * sizeof(GLfloat)));
-  glEnableVertexAttribArray(1);
-  
-  // Background color attribute (location 2)
-  glVertexAttribPointer(2, FLOATS_IN_COLOR, GL_FLOAT, GL_TRUE, floatsInVertex * sizeof(GLfloat), (void *)((FLOATS_IN_POINT + FLOATS_IN_COLOR) * sizeof(GLfloat)));
-  glEnableVertexAttribArray(2);
 }
 
 GLuint makeGlShader(const char *source, GLuint type) {
