@@ -1,5 +1,5 @@
-#ifndef CBMTOBMP_H
-#define CBMTOBMP_H
+#ifndef CBMCHARGEN_H
+#define CBMCHARGEN_H
     #include <stddef.h>
     #include "../common.h"
     #define CBM_CHARGEN_SIZE 2048
@@ -22,5 +22,6 @@
     char* asciiStringToPetsciiString(char *asciiString);
     void cbmBitmapFromChar(char* returnBucket, char* chargen, char asciiChar);
     char* cbmBitmapsFromString(char* chargen, char* asciiString);
+    struct cbmText makeText(struct Vector2 position, struct Vector2 dimensions, char *cbmChargen, char *text, struct Color textColor, struct Color backgroundColor);
     
 #endif

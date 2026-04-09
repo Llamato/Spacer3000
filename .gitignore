@@ -22,3 +22,4 @@ cbmchargen/cbmchargen.o
 glibs/common.o
 glibs/gvmath/gvmath.o
 .direnv/*
+glibs/cbmchargen/cbmchargen.o

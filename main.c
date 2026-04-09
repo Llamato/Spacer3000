@@ -248,9 +248,7 @@ struct Vector2 rotateVector(struct Vector2 vector, float angle) {
 }
 
 void rotateVertexArray(GLfloat *vertexDataBuffer, size_t vertexCount, float rotationAngle, unsigned int stride) {
-  for (size_t currentVertexStartIndex = 0;
-       currentVertexStartIndex < vertexCount * stride;
-       currentVertexStartIndex += stride) {
+  for (size_t currentVertexStartIndex = 0; currentVertexStartIndex < vertexCount * stride; currentVertexStartIndex += stride) {
     GLfloat newX = vertexDataBuffer[currentVertexStartIndex] * cosf(rotationAngle) - vertexDataBuffer[currentVertexStartIndex + 1] * sinf(rotationAngle);
     GLfloat newY = vertexDataBuffer[currentVertexStartIndex] * sinf(rotationAngle) + vertexDataBuffer[currentVertexStartIndex + 1] * cosf(rotationAngle);
     vertexDataBuffer[currentVertexStartIndex] = newX;
@@ -616,6 +614,7 @@ void deleteGlObject(struct GlObjectDataSet *ods) {
 // Event handlers
 int currentWindowWidth = PLAYFIELD_WIDTH;
 int currentWindowHeight = PLAYFIELD_HEIGHT;
+
 void windowResizeCallback(GLFWwindow *window, int width, int height) {
   glViewport(0, 0, width, height);
   currentWindowWidth = width;
@@ -642,8 +641,7 @@ struct Planet makePlanet(struct Vector2 location, GLfloat radius, float mass, st
   return planet;
 }
 
-struct Spaceship makeShip(struct Vector2 position, float orientation,
-                          struct Vector2 velocity, struct Color color) {
+struct Spaceship makeShip(struct Vector2 position, float orientation, struct Vector2 velocity, struct Color color) {
   struct Spaceship ship;
   ship.position = position;
   ship.orientation = orientation;
@@ -678,27 +676,6 @@ struct Pad makePad(struct Planet *parentPlanet, float angle) {
   translationVector.y += planetRadientVector.y;
   translateVertexArray(pad.glData.vertexDataBuffer, VERTS_IN_RECTANGLE,&translationVector, FLOATS_IN_POINT);
   return pad;
-}
-
-struct cbmText makeText(struct Vector2 position, struct Vector2 dimensions, char *cbmChargen, char *text, struct Color textColor, struct Color backgroundColor) {
-  struct cbmText cbmstr;
-
-  /*cbmstr.position = position;
-  cbmstr.scale = 1.0f;
-  cbmstr.cbmBitmapBytes = cbmBitmapsFromString(cbmChargen, text);
-
-  #if DEBUG == 1
-    for(int currentByte = 0; currentByte < strlen(text); currentByte++){
-      printf("%#08x ", cbmstr.cbmBitmapBytes[currentByte]);
-    }
-    printf("\n");
-  #endif*/
-
-  cbmstr.cbmChargenBytes = cbmChargen;
-  cbmstr.petsciiString = asciiStringToPetsciiString(text); 
-  cbmstr.screenCodeString = petsciiStringToScreencodeString(cbmstr.petsciiString);
-  cbmstr.glData = getTextRectangle(position, dimensions, textColor, backgroundColor);
-  return cbmstr;
 }
 
 _Bool isTriangleCollidingWithCircle(struct Spaceship *triangle, struct Planet *circle) {

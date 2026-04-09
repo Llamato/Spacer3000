@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include "../common.h"
 #include "cbmchargen.h"
 
 char* loadChargen(char* filename) {
@@ -84,4 +85,14 @@ char* cbmBitmapsFromString(char* chargen, char* asciiString) {
         cbmBitmapFromChar(currentChar * CBM_CHAR_SIZE + returnBuffer, chargen + CBM_CHAR_SIZE * currentChar, asciiToPetscii(asciiString[currentChar]));
     }
     return returnBuffer;
+}
+
+struct cbmText makeText(struct Vector2 position, struct Vector2 dimensions, char *cbmChargen, char *text, struct Color textColor, struct Color backgroundColor) {
+  struct cbmText cbmstr;
+
+  cbmstr.cbmChargenBytes = cbmChargen;
+  cbmstr.petsciiString = asciiStringToPetsciiString(text); 
+  cbmstr.screenCodeString = petsciiStringToScreencodeString(cbmstr.petsciiString);
+  cbmstr.glData = getTextRectangle(position, dimensions, textColor, backgroundColor);
+  return cbmstr;
 }
