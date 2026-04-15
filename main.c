@@ -12,7 +12,6 @@
 #include "glibs/common.h"
 #include "gvmath/gvmath.h"
 #include "cbmchargen/cbmchargen.h"
-#include "cbmchargen/cbmgraphics.h"
 
 //Filepaths
 #define DEFAULT_VERTEX_SHADER_FILENAME "shaders/default.vert"

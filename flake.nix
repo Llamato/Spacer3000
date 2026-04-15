@@ -55,29 +55,39 @@
       );
 
       devShells = forAllSystems (system:
-        let pkgs = pkgsFor system; in {
-          interactive = pkgs.mkShell {
-            inputsFrom = [
-              self.packages.${system}.default
-            ];
-            packages = with pkgs; [
+        let 
+          pkgs = pkgsFor system;
+          devTools = with pkgs; [
+              gnumake
+              gcc
               gdb
               clang-tools
               bear
               bun
             ];
-            shellHook = ''bunx nodemon --watch main.c --exec "sh -c 'make && ./build/spacer3000 || true'"'';
+        in let
+          defaultShellHook = ''
+            CC=${pkgs.gcc}/bin/gcc
+            echo "CC:" $CC
+            CXX=${pkgs.gcc}/bin/g++
+            echo "CXX:" $CXX
+          '';
+        in {
+          interactive = pkgs.mkShell {
+            inputsFrom = [
+              self.packages.${system}.default
+            ];
+            packages = devTools;
+            shellHook = ''
+              bunx nodemon --watch main.c --exec "sh -c 'make && ./build/spacer3000 || true'"
+            '';
           };
           default = pkgs.mkShell {
             inputsFrom = [
               self.packages.${system}.default
             ];
-            packages = with pkgs; [
-              gdb
-              clang-tools
-              bear
-              bun
-            ];
+            packages = devTools;
+            shellHook = defaultShellHook;
           };
         }
       );
