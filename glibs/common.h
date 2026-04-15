@@ -102,11 +102,14 @@
         GLuint primitiveType;
         GLuint shaderProgram;
     };
-    
+
     void printGlError(GLuint errorcode, unsigned int step);
     void makeGlObject(struct GlObjectDataSet *vds);
     struct GlObjectDataSet getRectangle(struct Vector2 center, struct Vector2 dimensions);
     struct GlObjectDataSet getTextRectangle(struct Vector2 center, struct Vector2 dimensions, struct Color textColor, struct Color backgroundColor);
     GLfloat *getTrianglefanCircle(struct Vector2 center, GLfloat radius, GLint polyCount, struct Color color);
     void makeTextShaderObject(struct GlObjectDataSet *vds);
+    char* readShaderFile(const char *filename);
+    GLuint makeGlShader(const char *source, GLuint type);
+    void linkGlShaders(GLuint shaderProgram, GLuint vertexShader, GLuint fragmentShader);
 #endif

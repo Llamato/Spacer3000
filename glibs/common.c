@@ -4,6 +4,10 @@
   #define M_PI 3.14159265358979323846
 #endif
 
+#ifndef ERROR_MESSAGE_MAX_LENGTH
+  #define ERROR_MESSAGE_MAX_LENGTH 2048
+#endif
+
 void printGlError(GLuint errorcode, unsigned int step) {
   printf("OpenGL Error: %x in step %u\n", errorcode, step);
   switch (errorcode) {
@@ -208,4 +212,55 @@ void makeTextShaderObject(struct GlObjectDataSet *vds) {
   // Background color attribute (location 2)
   glVertexAttribPointer(2, FLOATS_IN_COLOR, GL_FLOAT, GL_TRUE, floatsInVertex * sizeof(GLfloat), (void *)((FLOATS_IN_POINT + FLOATS_IN_COLOR) * sizeof(GLfloat)));
   glEnableVertexAttribArray(2);
+}
+
+char *readShaderFile(const char *filename) {
+  FILE *f = fopen(filename, "rb");
+  if (f == NULL)
+    return NULL;
+  fseek(f, 0, SEEK_END);
+
+  long fsize = ftell(f);
+  fseek(f, 0, SEEK_SET);
+
+  if (fsize == 0) {
+    fclose(f);
+    return NULL;
+  }
+  char *string = malloc(fsize + 1);
+  if (fread(string, fsize, 1, f) < 1) {
+    printf("Error loading shader: %s", filename);
+  }
+  fclose(f);
+  string[fsize] = 0;
+  return string;
+}
+
+GLuint makeGlShader(const char *source, GLuint type) {
+  GLuint shader = glCreateShader(type);
+  glShaderSource(shader, 1, &source, NULL);
+  glCompileShader(shader);
+  GLint success;
+  glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+  if (!success) {
+    char infoLog[ERROR_MESSAGE_MAX_LENGTH];
+    glGetShaderInfoLog(shader, ERROR_MESSAGE_MAX_LENGTH, NULL, infoLog);
+    printf("Vertex shader compilation failed: %s\n", infoLog);
+  }
+  return shader;
+}
+
+void linkGlShaders(GLuint shaderProgram, GLuint vertexShader, GLuint fragmentShader) {
+  glAttachShader(shaderProgram, vertexShader);
+  glAttachShader(shaderProgram, fragmentShader);
+  glLinkProgram(shaderProgram);
+  GLuint success;
+  glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+  if (!success) {
+    char infoLog[ERROR_MESSAGE_MAX_LENGTH];
+    glGetProgramInfoLog(shaderProgram, ERROR_MESSAGE_MAX_LENGTH, NULL, infoLog);
+    printf("Shader program linking failed: %s\n", infoLog);
+  }
+  glDeleteShader(vertexShader);
+  glDeleteShader(fragmentShader);
 }

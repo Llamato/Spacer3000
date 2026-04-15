@@ -13,4 +13,20 @@
     GLfloat getDistance(struct Vector2 *from, struct Vector2 *to);
     struct Vector2 getDirection(struct Vector2 *from, struct Vector2 *to);
     struct Vector2 getPerpendicularVector(struct Vector2 vector);
+    GLfloat gclamp(GLfloat value, GLfloat max, GLfloat min);
+    void translateVertexArray(GLfloat *vertexDataBuffer, size_t vertexCount, struct Vector2 *translationVector, unsigned int stride);
+    void translateOrigin(GLfloat *vertexDataBuffer, size_t vertexCount, struct Vector2 *from, struct Vector2 *to, unsigned int stride);
+    struct Vector2 rotateVector(struct Vector2 vector, float angle);
+    void rotateVertexArray(GLfloat *vertexDataBuffer, size_t vertexCount, float rotationAngle, unsigned int stride);
+    void convertScreenSpaceToLocal(GLfloat *vertexDataBuffer, size_t vertexCount, unsigned int stride);
+    struct Vector2 convertPolarToCatesian(struct Vector2 polarVector);
+    struct Vector2 getOutwardFacingEdgeNormal(struct Vector2 *edgeVector);
+    struct Vector2 getInwardFacingEdgeNormal(struct Vector2 *edgeVector);
+    struct Vector2 scaleVector(struct Vector2 *vector, GLfloat scaler);
+    struct Vector2 addVectors(struct Vector2 *v1, struct Vector2 *v2);
+    struct Vector2 subtractVectors(struct Vector2 *v1, struct Vector2 *v2);
+    struct Vector2 multiplyVectors(struct Vector2 *v1, struct Vector2 *v2);
+    GLfloat dotProduct(struct Vector2 *v1, struct Vector2 *v2);
+    struct Vector2 projectVertexToLine(struct Vector2 *point, struct Vector2 *line);
+    struct Vector2 *getPointsFromGlData(GLfloat *glData, size_t vertexCount, unsigned int stride);
 #endif
