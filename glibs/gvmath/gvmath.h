@@ -1,6 +1,5 @@
 #ifndef GVMATH_H
 #define GVMATH_H
-    #include <GLFW/glfw3.h>
     #include "../common.h"
     GLfloat gabsf(GLfloat value);
     GLfloat max(GLfloat values[], size_t numValues);

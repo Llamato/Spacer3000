@@ -31,36 +31,36 @@ void makeGlObject(struct GlObjectDataSet *vds) {
   GLenum error = GL_NO_ERROR;
 
   glGenVertexArrays(1, &vds->vao);
-  if (error = glGetError() != GL_NO_ERROR)
+  if ((error = glGetError()) != GL_NO_ERROR)
     printGlError(error, 1);
 
   glGenBuffers(1, &vds->vbo);
-  if (error = glGetError() != GL_NO_ERROR)
+  if ((error = glGetError()) != GL_NO_ERROR)
     printGlError(error, 2);
 
   glBindVertexArray(vds->vao);
-  if (error = glGetError() != GL_NO_ERROR)
+  if ((error = glGetError()) != GL_NO_ERROR)
     printGlError(error, 3);
 
   glBindBuffer(GL_ARRAY_BUFFER, vds->vbo);
-  if (error = glGetError() != GL_NO_ERROR)
+  if ((error = glGetError()) != GL_NO_ERROR)
     printGlError(error, 4);
 
-  glBufferData(GL_ARRAY_BUFFER, vds->vertexDataBufferSize,vds->vertexDataBuffer, GL_DYNAMIC_DRAW);
-  if (error = glGetError() != GL_NO_ERROR)
+  glBufferData(GL_ARRAY_BUFFER, vds->vertexDataBufferSize, vds->vertexDataBuffer, GL_DYNAMIC_DRAW);
+  if ((error = glGetError()) != GL_NO_ERROR)
     printGlError(error, 5);
 
   if (vds->indexCount > 0) {
     glGenBuffers(1, &vds->ibo);
-    if (error = glGetError() != GL_NO_ERROR)
+    if ((error = glGetError()) != GL_NO_ERROR)
       printGlError(error, 6);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vds->ibo);
-    if (error = glGetError() != GL_NO_ERROR)
+    if ((error = glGetError()) != GL_NO_ERROR)
       printGlError(error, 7);
 
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, vds->indexCount * sizeof(GLuint),vds->vertexIndexBuffer, GL_STATIC_DRAW);
-    if (error = glGetError() != GL_NO_ERROR)
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, vds->indexCount * sizeof(GLuint), vds->vertexIndexBuffer, GL_STATIC_DRAW);
+    if ((error = glGetError()) != GL_NO_ERROR)
       printGlError(error, 8);
   }
 }

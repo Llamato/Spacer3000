@@ -1,6 +1,9 @@
 #ifndef ENGINE_COMMON_H
 #define ENGINE_COMMON_H
-    #include "glad/khrplatform.h"
+    #ifndef GLFW_INCLUDE_NONE
+        #define GLFW_INCLUDE_NONE
+    #endif
+    #include "glad/glad.h"
     #include <GLFW/glfw3.h>
     #include <stddef.h>
     #include <stdio.h>
