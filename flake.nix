@@ -35,7 +35,7 @@
               libGLU
               mesa
               libglvnd
-              xorg.libX11
+              libX11
               libc
             ];
 
