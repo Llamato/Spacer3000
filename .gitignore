@@ -1,9 +1,22 @@
+# Local helper scripts
 buildandrun.sh
+
+# Tooling
 compile_commands.json
 .clangd
 .idea/
-.build/
 .vscode/
 .cache/
 .direnv/
+
+# Build outputs
+build/
+.build/
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+
+# Nix
 result/
