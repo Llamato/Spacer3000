@@ -9,7 +9,8 @@ out vec4 bgColor;
 void main() {
     // Pass the vertex position directly to gl_Position
     // Assumes aPos is already in Normalized Device Coordinates (NDC) range [-1, 1]
-    gl_Position = vec4(2*aPos, 0.0, 1.0);
+    vec4 ndc = vec4(2*aPos, 0.0, 1.0);
+    gl_Position = ndc;
     textColor = aTextColor;
     bgColor = aBgColor;
 }
