@@ -23,5 +23,5 @@
     void cbmBitmapFromChar(char* returnBucket, char* chargen, char asciiChar);
     char* cbmBitmapsFromString(char* chargen, char* asciiString);
     struct cbmText makeText(struct Vector2 position, struct Vector2 dimensions, char *cbmChargen, char *text, struct Color textColor, struct Color backgroundColor);
-    
+    void makeTextShaderObject(struct GlObjectDataSet *vds);
 #endif
