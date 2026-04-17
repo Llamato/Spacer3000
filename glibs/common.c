@@ -1,4 +1,5 @@
 #include "common.h"
+#include "glad/khrplatform.h"
 
 #ifndef M_PI
   #define M_PI 3.14159265358979323846
@@ -219,15 +220,19 @@ char *readShaderFile(const char *filename) {
 }
 
 GLuint makeGlShader(const char *source, GLuint type) {
+  GLint success;
   GLuint shader = glCreateShader(type);
   glShaderSource(shader, 1, &source, NULL);
   glCompileShader(shader);
-  GLint success;
   glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
   if (!success) {
     char infoLog[ERROR_MESSAGE_MAX_LENGTH];
     glGetShaderInfoLog(shader, ERROR_MESSAGE_MAX_LENGTH, NULL, infoLog);
-    printf("Vertex shader compilation failed: %s\n", infoLog);
+    switch (type) {
+      case GL_VERTEX_SHADER: printf("Vertex shader compilation failed: %s\n", infoLog); break;
+      case GL_FRAGMENT_SHADER: printf("Fragment shader compilation failed: %s\n", infoLog); break;
+      default: printf("Type %i shader compilation failed: %s\n", type, infoLog);
+    }
   }
   return shader;
 }
@@ -245,4 +250,30 @@ void linkGlShaders(GLuint shaderProgram, GLuint vertexShader, GLuint fragmentSha
   }
   glDeleteShader(vertexShader);
   glDeleteShader(fragmentShader);
+}
+
+GLint getGlUniformLocation(GLuint shaderProgram, const char* varname) {
+  GLint uniform = glGetUniformLocation(shaderProgram, varname);
+  char infoLog[ERROR_MESSAGE_MAX_LENGTH];
+  glGetShaderInfoLog(shaderProgram, ERROR_MESSAGE_MAX_LENGTH, NULL, infoLog);
+  if(uniform == GL_INVALID_VALUE || uniform == GL_INVALID_OPERATION || uniform == -1){
+    printf("%s %s\nError (%i): %s\n", varname, "uniform could not be found!", uniform, infoLog);
+    return -1;
+  }
+  return uniform;
+}
+
+void setGlUniform1f(GLuint shaderProgram, const char* varname, GLfloat value) {
+  GLuint uniform = getGlUniformLocation(shaderProgram, varname);
+  if(uniform != -1) glUniform1f(uniform, value);
+}
+
+void setGlUniform2f(GLuint shaderProgram, const char* varname, GLfloat float1, GLfloat float2) {
+  GLuint uniform = getGlUniformLocation(shaderProgram, varname);
+  if(uniform != -1) glUniform2f(uniform, float1, float2);
+}
+
+void setGlUniform1uiv(GLuint shaderProgram, const char* varname, GLuint size, GLuint* uints) {
+  GLuint uniform = getGlUniformLocation(shaderProgram, varname);
+  if(uniform != -1) glUniform1uiv(uniform, size, uints);
 }

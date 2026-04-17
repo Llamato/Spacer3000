@@ -21,3 +21,4 @@ build/
 # Nix
 result/
 result
+enhance_compile_commands.py

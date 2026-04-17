@@ -4,7 +4,8 @@
     #include "../common.h"
     #define CBM_CHARGEN_SIZE 2048
     #define CBM_CHAR_SIZE 8
-    #define CBM_MAX_STRING_LENGTH 255
+    #define CBM_SCREEN_SIZE 1000
+    #define CBM_COLOR_PALLET_SIZE 16
     struct cbmText {
         struct Vector2 position;
         float scale;

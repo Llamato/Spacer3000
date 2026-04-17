@@ -19,7 +19,7 @@
 #define PAD_VERTEX_SHADER_FILENAME "shaders/pad.vert"
 #define PAD_FRAGMENT_SHADER_FILENAME "shaders/pad.frag"
 #define TEXT_VERTEX_SHADER_FILENAME "shaders/cbmchar.vert"
-#define TEXT_FRAGMENT_SHADER_FILENAME "shaders/cbmcharunpacked.frag"
+#define TEXT_FRAGMENT_SHADER_FILENAME "shaders/cbmcharmode.frag"
 #define CBM_CHARGEN_FILENAME "glibs/cbmchargen/c64.bin"
 
 // Debug!!!
@@ -579,8 +579,8 @@ int main(int argc, char *argv[]) {
   glClear(GL_COLOR_BUFFER_BIT);
   glfwSwapBuffers(window);
 
-  while (!glfwWindowShouldClose(window)) {
-    if (!windowIsFocused) {
+  while(!glfwWindowShouldClose(window)){
+    if(!windowIsFocused){
       glfwPollEvents();
       continue;
     }
@@ -593,12 +593,9 @@ int main(int argc, char *argv[]) {
 
     // Set default shader parameters
     glUseProgram(defaultShaderProgram);
-    GLuint cameraPositionDefaultShaderPtr = glGetUniformLocation(defaultShaderProgram, "cameraPos");
-    glUniform2f(cameraPositionDefaultShaderPtr, camera.position.x,camera.position.y);
-    GLuint screenSizeDefaultShaderPtr = glGetUniformLocation(defaultShaderProgram, "screenSize");
-    glUniform2f(screenSizeDefaultShaderPtr, currentWindowWidth,currentWindowHeight);
-    GLuint zoomDefaultShaderPtr = glGetUniformLocation(defaultShaderProgram, "zoom");
-    glUniform1f(zoomDefaultShaderPtr, camera.zoom);
+    setGlUniform2f(defaultShaderProgram, "cameraPos", camera.position.x, camera.position.y);
+    setGlUniform2f(defaultShaderProgram, "screenSize", currentWindowWidth, currentWindowHeight);
+    setGlUniform1f(defaultShaderProgram, "zoom", camera.zoom);
 
     // Draw objects using default shaders
     drawGlObject(&playerShip.bodyGlData);
@@ -607,15 +604,14 @@ int main(int argc, char *argv[]) {
 
     // Set pad shader parameters
     glUseProgram(padShaderProgram);
-    GLuint cameraPositionPadShaderPtr = glGetUniformLocation(padShaderProgram, "cameraPos");
-    glUniform2f(cameraPositionPadShaderPtr, camera.position.x,camera.position.y);
-    GLuint screenSizePadShaderPtr = glGetUniformLocation(padShaderProgram, "screenSize");
-    glUniform2f(screenSizePadShaderPtr, currentWindowWidth,currentWindowHeight);
-    GLuint zoomPadShaderPtr = glGetUniformLocation(padShaderProgram, "zoom");
-    glUniform1f(zoomPadShaderPtr, camera.zoom);
+    setGlUniform2f(padShaderProgram, "cameraPos", camera.position.x, camera.position.y);
+    setGlUniform2f(padShaderProgram, "screenSize", currentWindowWidth, currentWindowHeight);
+    setGlUniform1f(padShaderProgram, "zoom", camera.zoom);
 
     // Draw objects using pad shader
     drawGlObject(&cssc.glData);
+
+    // Swap buffers, pull events and do physics
     glfwSwapBuffers(window);
     glfwPollEvents();
 
@@ -655,7 +651,7 @@ int main(int argc, char *argv[]) {
       playerShip.acceleration.x = 0.0f;
       playerShip.acceleration.y = 0.0f;
       applyShipPositionAndOrientation(&playerShip);
-      if(isTriangleCollidingWithRectangle(&playerShip, &cssc)){
+      if (isTriangleCollidingWithRectangle(&playerShip, &cssc)) {
         while (!glfwWindowShouldClose(window)) {
           printf("%s\n", "landed!");
           glfwPollEvents();
@@ -673,32 +669,22 @@ int main(int argc, char *argv[]) {
           glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
           glClear(GL_COLOR_BUFFER_BIT);
           glUseProgram(textShaderProgram);
-          GLuint resolutionUniform = glGetUniformLocation(textShaderProgram, "iResolution");
-          if(resolutionUniform != -1){
-            glUniform2f(resolutionUniform, (float)currentWindowWidth, (float)currentWindowHeight);
-          }else{
-            printf("%s\n", "iResolution uniform could not be found!");
-          }
 
-          GLuint chargenUniform = glGetUniformLocation(textShaderProgram, "chargen");
-          if(chargenUniform != -1){
-            GLuint intBytes[CBM_CHARGEN_SIZE];
-            for(int currentByte = 0; currentByte < CBM_CHARGEN_SIZE; currentByte++){
-              intBytes[currentByte] = c64chargen[currentByte];
-            }
-            glUniform1uiv(chargenUniform, CBM_CHARGEN_SIZE, intBytes);
-          }else{
-            printf("%s\n", "chargenUniform could not be found!");
+          setGlUniform2f(textShaderProgram, "iResolution", currentWindowWidth, currentWindowHeight);
+          GLuint intBytes[CBM_CHARGEN_SIZE];
+          for(size_t currentByte = 0; currentByte < CBM_CHARGEN_SIZE; currentByte++){
+            intBytes[currentByte] = c64chargen[currentByte];
           }
-
-          GLuint petsciiCodeUniform = glGetUniformLocation(textShaderProgram, "petsciicode");
-          if(petsciiCodeUniform != -1){
-            glUniform1ui(petsciiCodeUniform, (GLuint)currentCharacterIndex);
-            currentCharacterIndex++;
-          }else{
-            printf("%s\n", "petsciiCodeUniform could not be found!");
+          setGlUniform1uiv(textShaderProgram, "chargen", CBM_CHARGEN_SIZE, intBytes);
+          GLuint screenBytes[CBM_SCREEN_SIZE];
+          for(size_t currentByte = 0; currentByte < CBM_SCREEN_SIZE; currentByte++) {
+            screenBytes[currentByte] = currentByte < 256 ? currentByte : 0;
           }
-
+          setGlUniform1uiv(textShaderProgram, "screen", CBM_SCREEN_SIZE, screenBytes);
+          GLuint colorBytes[CBM_SCREEN_SIZE];
+          for(size_t currentByte = 0; currentByte < CBM_SCREEN_SIZE; currentByte++) {
+            colorBytes[currentByte] = currentByte % CBM_COLOR_PALLET_SIZE;
+          }
           drawGlObject(&gameoverText.glData);
           glfwSwapBuffers(window);
           sleep(1);

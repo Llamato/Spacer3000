@@ -111,4 +111,8 @@
     char* readShaderFile(const char *filename);
     GLuint makeGlShader(const char *source, GLuint type);
     void linkGlShaders(GLuint shaderProgram, GLuint vertexShader, GLuint fragmentShader);
+    GLint getGlUniformLocation(GLuint shaderProgram, const char* varname);
+    void setGlUniform1f(GLuint shaderProgram, const char* varname, GLfloat value);
+    void setGlUniform2f(GLuint shaderProgram, const char* varname, GLfloat float1, GLfloat float2);
+    void setGlUniform1uiv(GLuint shaderProgram, const char* varname, GLuint size, GLuint* uints);
 #endif
