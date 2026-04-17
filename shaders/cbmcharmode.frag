@@ -16,13 +16,14 @@ const uint charRows = 8u;
 const uint screenColumns = 40u;
 const uint screenRows = 25u;
 
-const vec4 bgColor = vec4(1.0, 0.0, 1.0, 1.0);
+const vec4 bgColor = vec4(0.0, 0.0, 0.0, 0.0);
 
 bool getPixel(uint charScreenIndex, uint pixelCharIndex) {
     uint char = screen[charScreenIndex];
     uint column = pixelCharIndex % charColumns;
+    uint oppositeColumn = (charColumns - 1u) - column;
     uint row = pixelCharIndex / charRows;
-    return (chargen[char * charRows + row] & (1u << column)) != 0u;
+    return (chargen[char * charRows + row] & (1u << oppositeColumn)) != 0u;
 }
 
 vec4 getColor(uint charScreenIndex) {
@@ -39,6 +40,7 @@ void main() {
     
     vec2 charCoord = vec2(fract(screenCoord.x) * float(charColumns), fract(screenCoord.y) * float(charRows));
     uint charIndex = uint(floor(charCoord.y) * float(charColumns) + floor(charCoord.x));
-    
-    FragColor = mix(bgColor, getColor(screenIndex), float(getPixel(screenIndex, charIndex)));
+    vec4 fragColor = mix(bgColor, getColor(screenIndex), float(getPixel(screenIndex, charIndex)));
+    if (fragColor.a < 0.1) discard;
+    FragColor = fragColor;
 }

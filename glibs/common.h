@@ -115,4 +115,8 @@
     void setGlUniform1f(GLuint shaderProgram, const char* varname, GLfloat value);
     void setGlUniform2f(GLuint shaderProgram, const char* varname, GLfloat float1, GLfloat float2);
     void setGlUniform1uiv(GLuint shaderProgram, const char* varname, GLuint size, GLuint* uints);
+    void setGlUniform4fv(GLuint shaderProgram, const char* varname, GLuint size, GLfloat* floats);
+    void drawGlObject(struct GlObjectDataSet *ods);
+    struct GlObjectDataSet initDefaultGlObject(void);
+    void deleteGlObject(struct GlObjectDataSet *ods);
 #endif

@@ -1,8 +1,4 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include "../common.h"
+
 #include "cbmchargen.h"
 
 char* loadChargen(char* filename) {
@@ -66,13 +62,13 @@ char petsciiToScreencode(char petsciiChar) {
 }
 
 char* petsciiStringToScreencodeString(char *petsciiString){
-    unsigned int currentChar = 0;
-    char* screencodeString = malloc((strlen(petsciiString)+1) * sizeof(char));
-    while(petsciiString[currentChar] != '\0') {
-        petsciiString[currentChar] = petsciiToScreencode(petsciiString[currentChar]);
-        currentChar++;
-    }
-    return petsciiString;
+  unsigned int currentChar = 0;
+  char* screencodeString = malloc((strlen(petsciiString)+1) * sizeof(char));
+  while(petsciiString[currentChar] != '\0') {
+      petsciiString[currentChar] = petsciiToScreencode(petsciiString[currentChar]);
+      currentChar++;
+  }
+  return petsciiString;
 }
 
 void cbmBitmapFromChar(char* returnBucket, char* chargen, char petsciiChar) {
@@ -80,29 +76,53 @@ void cbmBitmapFromChar(char* returnBucket, char* chargen, char petsciiChar) {
 }
 
 char* cbmBitmapsFromString(char* chargen, char* asciiString) {
-    char* returnBuffer = malloc(CBM_MAX_STRING_LENGTH * sizeof(char) * CBM_CHAR_SIZE);
-    for(size_t currentChar = 0; currentChar < CBM_MAX_STRING_LENGTH; currentChar++){
+    char* returnBuffer = malloc(CBM_SCREEN_SIZE * sizeof(char) * CBM_CHAR_SIZE);
+    for(size_t currentChar = 0; currentChar < CBM_SCREEN_SIZE; currentChar++){
         cbmBitmapFromChar(currentChar * CBM_CHAR_SIZE + returnBuffer, chargen + CBM_CHAR_SIZE * currentChar, asciiToPetscii(asciiString[currentChar]));
     }
     return returnBuffer;
 }
 
-struct cbmText makeText(struct Vector2 position, struct Vector2 dimensions, char *cbmChargen, char *text, struct Color textColor, struct Color backgroundColor) {
-  struct cbmText cbmstr;
+struct cbmText makeText(struct Vector2 position, struct Vector2 dimensions, char *chargen, char *text, struct Color textColor, struct Color backgroundColor) {
+    struct cbmText cbmstr;
 
-  cbmstr.cbmChargenBytes = cbmChargen;
-  cbmstr.petsciiString = asciiStringToPetsciiString(text); 
-  cbmstr.screenCodeString = petsciiStringToScreencodeString(cbmstr.petsciiString);
-  cbmstr.glData = getTextRectangle(position, dimensions, textColor, backgroundColor);
-  return cbmstr;
+    cbmstr.cbmChargenBytes = chargen;
+    cbmstr.petsciiString = asciiStringToPetsciiString(text); 
+    cbmstr.screenCodeString = petsciiStringToScreencodeString(cbmstr.petsciiString);
+    cbmstr.glData = getTextRectangle(position, dimensions, textColor, backgroundColor);
+    return cbmstr;
 }
 
-void makeTextShaderObject(struct GlObjectDataSet *vds) {
-  makeGlObject(vds);
-  
-  const size_t floatsInVertex = FLOATS_IN_POINT + 2 * FLOATS_IN_COLOR;
-  
-  // Position attribute (location 0)
-  glVertexAttribPointer(0, FLOATS_IN_POINT, GL_FLOAT, GL_FALSE, floatsInVertex * sizeof(GLfloat), (void *)0);
-  glEnableVertexAttribArray(0);
+void makeTextShaderObject(GLuint shaderProgram, struct GlObjectDataSet *vds) {
+    makeGlObject(vds);
+    vds->shaderProgram = shaderProgram;
+
+    // Position attribute (location 0)
+    const size_t floatsInVertex = FLOATS_IN_POINT + 2 * FLOATS_IN_COLOR;
+    glVertexAttribPointer(0, FLOATS_IN_POINT, GL_FLOAT, GL_FALSE, floatsInVertex * sizeof(GLfloat), (void *)0);
+    glEnableVertexAttribArray(0);
+    }
+
+void drawText(struct GlObjectDataSet *vds, char* chargen, GLfloat width, GLfloat height) {
+    glUseProgram(vds->shaderProgram);
+
+    setGlUniform2f(vds->shaderProgram, "iResolution", width, height);
+    GLuint paddedChargenBytes[CBM_CHARGEN_SIZE];
+    for(size_t currentByte = 0; currentByte < CBM_CHARGEN_SIZE; currentByte++) {
+    paddedChargenBytes[currentByte] = chargen[currentByte];
+    }
+    setGlUniform1uiv(vds->shaderProgram, "chargen", CBM_CHARGEN_SIZE, paddedChargenBytes);
+    GLuint paddedScreenBytes[CBM_SCREEN_SIZE];
+    for(size_t currentByte = 0; currentByte < CBM_SCREEN_SIZE; currentByte++){
+    paddedScreenBytes[currentByte] = currentByte < 256 ? currentByte : 0;
+    }
+    setGlUniform4fv(vds->shaderProgram, "colorPallet", CBM_COLOR_PALLET_SIZE, (GLfloat*) c64colorPallet);
+    setGlUniform1uiv(vds->shaderProgram, "screen", CBM_SCREEN_SIZE, paddedScreenBytes);
+    GLuint paddedColorBytes[CBM_SCREEN_SIZE];
+    for(size_t currentByte = 0; currentByte < CBM_SCREEN_SIZE; currentByte++) {
+    paddedColorBytes[currentByte] = currentByte % CBM_COLOR_PALLET_SIZE;
+    }
+    setGlUniform1uiv(vds->shaderProgram, "colors", CBM_SCREEN_SIZE, paddedColorBytes);
+    
+    drawGlObject(vds);
 }

@@ -307,56 +307,6 @@ void makePadShaderObject(struct GlObjectDataSet *vds) {
   glEnableVertexAttribArray(0);
 }
 
-void drawGlObject(struct GlObjectDataSet *ods) {
-  GLenum error = GL_NO_ERROR;
-  glBindVertexArray(ods->vao);
-#if DEBUG
-  if (error = glGetError() != GL_NO_ERROR)
-    printGlError(error, 1);
-#endif
-
-  glBindBuffer(GL_ARRAY_BUFFER, ods->vbo);
-#if DEBUG
-  if (error = glGetError() != GL_NO_ERROR)
-    printGlError(error, 2);
-#endif
-
-  glBufferSubData(GL_ARRAY_BUFFER, 0, ods->vertexDataBufferSize,ods->vertexDataBuffer);
-#if DEBUG
-  // printf("size: %zu\tData:\n", ods->vertexDataBufferSize);
-  if (error = glGetError() != GL_NO_ERROR)
-    printGlError(error, 3);
-#endif
-
-  if (ods->indexCount > 0) {
-    glDrawElements(ods->primitiveType, ods->indexCount, GL_UNSIGNED_INT, 0);
-#if DEBUG
-    if (error = glGetError() != GL_NO_ERROR)
-      printGlError(error, 4);
-#endif
-  } else {
-    glDrawArrays(ods->primitiveType, 0, ods->vertexCount);
-#if DEBUG
-    if (error = glGetError() != GL_NO_ERROR)
-      printGlError(error, 5);
-#endif
-  }
-}
-
-struct GlObjectDataSet initDefaultGlObject(void) {
-  struct GlObjectDataSet ods;
-  memset(&ods, 0, sizeof(struct GlObjectDataSet));
-  return ods;
-}
-
-void deleteGlObject(struct GlObjectDataSet *ods) {
-  free(ods->vertexDataBuffer);
-  free(ods->vertexIndexBuffer);
-  glDeleteVertexArrays(1, &ods->vao);
-  glDeleteBuffers(1, &ods->vbo);
-  memset(ods, 0, sizeof(struct GlObjectDataSet));
-}
-
 // Event handlers
 int currentWindowWidth = PLAYFIELD_WIDTH;
 int currentWindowHeight = PLAYFIELD_HEIGHT;
@@ -568,7 +518,7 @@ int main(int argc, char *argv[]) {
   GLuint textFragmentShader = makeGlShader(textFragmentShaderSource, GL_FRAGMENT_SHADER);
   GLuint textShaderProgram = glCreateProgram();
   linkGlShaders(textShaderProgram, textVertexShader, textFragmentShader);
-  makeTextShaderObject(&gameoverText.glData);
+  makeTextShaderObject(textShaderProgram, &gameoverText.glData);
 
   // Unbind the buffers after use
   glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -662,7 +612,7 @@ int main(int argc, char *argv[]) {
       }else if(isTriangleCollidingWithCircle(&playerShip, &paleBlueDot)){
         printf("Game Over! Showing screen...\n");
         uint8_t currentCharacterIndex = 0;
-        while(!glfwWindowShouldClose(window)){
+        while(!glfwWindowShouldClose(window)) {
           gameLoopEndTime = glfwGetTime();
           frameTime = gameLoopEndTime - gameLoopStartTime;
           timeAccumulator += frameTime;
@@ -671,21 +621,25 @@ int main(int argc, char *argv[]) {
           glUseProgram(textShaderProgram);
 
           setGlUniform2f(textShaderProgram, "iResolution", currentWindowWidth, currentWindowHeight);
-          GLuint intBytes[CBM_CHARGEN_SIZE];
-          for(size_t currentByte = 0; currentByte < CBM_CHARGEN_SIZE; currentByte++){
-            intBytes[currentByte] = c64chargen[currentByte];
+          GLuint cbmchargen[CBM_CHARGEN_SIZE];
+          for(size_t currentByte = 0; currentByte < CBM_CHARGEN_SIZE; currentByte++) {
+            cbmchargen[currentByte] = c64chargen[currentByte];
           }
-          setGlUniform1uiv(textShaderProgram, "chargen", CBM_CHARGEN_SIZE, intBytes);
+          setGlUniform1uiv(textShaderProgram, "chargen", CBM_CHARGEN_SIZE, cbmchargen);
           GLuint screenBytes[CBM_SCREEN_SIZE];
-          for(size_t currentByte = 0; currentByte < CBM_SCREEN_SIZE; currentByte++) {
+          for(size_t currentByte = 0; currentByte < CBM_SCREEN_SIZE; currentByte++){
             screenBytes[currentByte] = currentByte < 256 ? currentByte : 0;
           }
+          setGlUniform4fv(textShaderProgram, "colorPallet", CBM_COLOR_PALLET_SIZE, (GLfloat*) c64colorPallet);
           setGlUniform1uiv(textShaderProgram, "screen", CBM_SCREEN_SIZE, screenBytes);
           GLuint colorBytes[CBM_SCREEN_SIZE];
           for(size_t currentByte = 0; currentByte < CBM_SCREEN_SIZE; currentByte++) {
             colorBytes[currentByte] = currentByte % CBM_COLOR_PALLET_SIZE;
           }
+          setGlUniform1uiv(textShaderProgram, "colors", CBM_SCREEN_SIZE, colorBytes);
+          
           drawGlObject(&gameoverText.glData);
+
           glfwSwapBuffers(window);
           sleep(1);
           if(glfwGetKey(window, GLFW_KEY_SPACE)) {

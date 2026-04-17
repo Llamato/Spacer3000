@@ -1,6 +1,5 @@
 #include "common.h"
-#include "glad/khrplatform.h"
-
+#include <string.h>
 #ifndef M_PI
   #define M_PI 3.14159265358979323846
 #endif
@@ -277,3 +276,59 @@ void setGlUniform1uiv(GLuint shaderProgram, const char* varname, GLuint size, GL
   GLuint uniform = getGlUniformLocation(shaderProgram, varname);
   if(uniform != -1) glUniform1uiv(uniform, size, uints);
 }
+
+void setGlUniform4fv(GLuint shaderProgram, const char* varname, GLuint size, GLfloat* floats) {
+  GLuint uniform = getGlUniformLocation(shaderProgram, varname);
+  if(uniform != -1) glUniform4fv(uniform, size, floats);
+}
+
+void drawGlObject(struct GlObjectDataSet *ods) {
+  GLenum error = GL_NO_ERROR;
+  glBindVertexArray(ods->vao);
+#if DEBUG
+  if (error = glGetError() != GL_NO_ERROR)
+    printGlError(error, 1);
+#endif
+
+  glBindBuffer(GL_ARRAY_BUFFER, ods->vbo);
+#if DEBUG
+  if (error = glGetError() != GL_NO_ERROR)
+    printGlError(error, 2);
+#endif
+
+  glBufferSubData(GL_ARRAY_BUFFER, 0, ods->vertexDataBufferSize,ods->vertexDataBuffer);
+#if DEBUG
+  // printf("size: %zu\tData:\n", ods->vertexDataBufferSize);
+  if (error = glGetError() != GL_NO_ERROR)
+    printGlError(error, 3);
+#endif
+
+  if (ods->indexCount > 0) {
+    glDrawElements(ods->primitiveType, ods->indexCount, GL_UNSIGNED_INT, 0);
+#if DEBUG
+    if (error = glGetError() != GL_NO_ERROR)
+      printGlError(error, 4);
+#endif
+  } else {
+    glDrawArrays(ods->primitiveType, 0, ods->vertexCount);
+#if DEBUG
+    if (error = glGetError() != GL_NO_ERROR)
+      printGlError(error, 5);
+#endif
+  }
+}
+
+struct GlObjectDataSet initDefaultGlObject(void) {
+  struct GlObjectDataSet ods;
+  memset(&ods, 0, sizeof(struct GlObjectDataSet));
+  return ods;
+}
+
+void deleteGlObject(struct GlObjectDataSet *ods) {
+  free(ods->vertexDataBuffer);
+  free(ods->vertexIndexBuffer);
+  glDeleteVertexArrays(1, &ods->vao);
+  glDeleteBuffers(1, &ods->vbo);
+  memset(ods, 0, sizeof(struct GlObjectDataSet));
+}
+
