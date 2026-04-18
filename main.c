@@ -11,14 +11,14 @@
 #include <unistd.h>
 #include "glibs/common.h"
 #include "gvmath/gvmath.h"
-#include "cbmchargen/cbmchargen.h"
+#include "cbmchargen/cbmcharmode.h"
 
 //Filepaths
 #define DEFAULT_VERTEX_SHADER_FILENAME "shaders/default.vert"
 #define DEFAULT_FRAGMENT_SHADER_FILENAME "shaders/default.frag"
 #define PAD_VERTEX_SHADER_FILENAME "shaders/pad.vert"
 #define PAD_FRAGMENT_SHADER_FILENAME "shaders/pad.frag"
-#define TEXT_VERTEX_SHADER_FILENAME "shaders/cbmchar.vert"
+#define TEXT_VERTEX_SHADER_FILENAME "shaders/cbmcharmode.vert"
 #define TEXT_FRAGMENT_SHADER_FILENAME "shaders/cbmcharmode.frag"
 #define CBM_CHARGEN_FILENAME "glibs/cbmchargen/c64.bin"
 
@@ -507,9 +507,7 @@ int main(int argc, char *argv[]) {
   struct Vector2 gameoverTextPosition = {-0.0f, -0.0f};
   struct Vector2 gameoverTextDimensions = {1,1};
   char* c64chargen = loadChargen(CBM_CHARGEN_FILENAME);
-  struct Color textColor = {1.0f, 1.0f, 1.0f, 1.0f};
-  struct Color backgroundColor = {0.0f, 1.0f, 0.0f, 1.0f};
-  struct cbmText gameoverText = makeText(gameoverTextPosition, gameoverTextDimensions, c64chargen,"You crashed!", textColor, backgroundColor);
+  struct cbmScreen gameoverText = makeCbmScreen(gameoverTextPosition, gameoverTextDimensions, c64chargen, c64colorPallet);
 
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
@@ -619,7 +617,7 @@ int main(int argc, char *argv[]) {
           timeAccumulator += frameTime;
           glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
           glClear(GL_COLOR_BUFFER_BIT);
-          drawText(&gameoverText.glData, c64chargen, currentWindowWidth, currentWindowHeight);
+          drawCbmScreen(&gameoverText, currentWindowWidth, currentWindowHeight);
 
           glfwSwapBuffers(window);
           sleep(1);

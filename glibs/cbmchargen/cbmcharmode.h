@@ -1,22 +1,31 @@
-#ifndef CBMCHARGEN_H
-#define CBMCHARGEN_H
+#ifndef CBMCHARMODE_H
+#define CBMCHARMODE_H
     #include <stddef.h>
-    #include <stdlib.h>
     #include <stdio.h>
+    #include <stdlib.h>
     #include <string.h>
     #include <unistd.h>
     #include "../common.h"
     #define CBM_CHARGEN_SIZE 2048
     #define CBM_CHAR_SIZE 8
-    #define CBM_SCREEN_SIZE 1000
+    #define CBM_SCREEN_COLUMNS 40
+    #define CBM_SCREEN_ROWS 25
+    #define CBM_SCREEN_SIZE CBM_SCREEN_COLUMNS*CBM_SCREEN_ROWS
     #define CBM_COLOR_PALLET_SIZE 16
-    struct cbmText {
-        struct Vector2 position;
-        float scale;
+    #define CBM_COLOR_BLACK 0
+    #define CBM_COLOR_WHITE 1
+    #define CBM_COLOR_RED 2
+    #define CBM_SCREENCODE_CLEAR_CHAR 32
 
-        char *cbmChargenBytes;
-        char *petsciiString;
-        char *screenCodeString;
+    struct cbmScreen {
+        struct Vector2 position;
+        struct Vector2 dimensions;
+
+        char* chargen;
+        const struct Color* colorPallet;
+        
+        char* chars;
+        char* colors;
 
         struct GlObjectDataSet glData;
     };
@@ -43,9 +52,12 @@
     char petsciiToScreencode(char petsciiChar);
     char* petsciiStringToScreencodeString(char* petsciiString);
     char* asciiStringToPetsciiString(char *asciiString);
-    void cbmBitmapFromChar(char* returnBucket, char* chargen, char asciiChar);
-    char* cbmBitmapsFromString(char* chargen, char* asciiString);
-    struct cbmText makeText(struct Vector2 position, struct Vector2 dimensions, char *cbmChargen, char *text, struct Color textColor, struct Color backgroundColor);
+    uint8_t getClosestPalletColor(struct Color* pallet, struct Color color);
+    struct GlObjectDataSet getTextRectangle(struct Vector2 center, struct Vector2 dimensions);
+    struct cbmScreen makeCbmScreen(struct Vector2 position, struct Vector2 dimensions, char* chargen, const struct Color* colorPallet);
+    void clearCbmScreen(struct cbmScreen* screen);
+    void writeChargenToCbmScreen(struct cbmScreen* screen, size_t offset);
+    void writeStringToCbmScreen(struct cbmScreen* screen, struct Vector2 screenPosition, char* asciiString, uint8_t palletColor);
     void makeTextShaderObject(GLuint shaderProgram, struct GlObjectDataSet *vds);
-    void drawText(struct GlObjectDataSet *vds, char* chargen, GLfloat width, GLfloat height);
+    void drawCbmScreen(struct cbmScreen* screen, GLfloat width, GLfloat height);
 #endif

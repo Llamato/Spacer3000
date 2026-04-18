@@ -10,7 +10,7 @@ CBMCHARGEN = build/cbmchargen
 
 # Source files for each target
 COMMON_GLIB_SOURCES = glibs/common.c
-CBMCHARGEN_SOURCES = glibs/cbmchargen/cbmchargen.c
+CBMCHARGEN_SOURCES = glibs/cbmchargen/cbmcharmode.c
 GVMATH_SOURCES = glibs/gvmath/gvmath.c
 SPACER_SOURCES = glad/glad.c $(COMMON_GLIB_SOURCES) $(CBMCHARGEN_SOURCES) $(GVMATH_SOURCES) main.c 
 
