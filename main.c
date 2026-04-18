@@ -117,7 +117,6 @@ struct Spaceship {
 };
 
 struct Planet {
-
   // Physical Data
   struct Vector2 position;
   GLfloat radius;
@@ -218,6 +217,91 @@ struct GlObjectDataSet getTriangle(struct Vector2 center, GLfloat orientation) {
   return glData;
 }
 
+// Object instance management
+struct Planet makePlanet(struct Vector2 location, GLfloat radius, float mass, struct Color color) {
+  struct Planet planet;
+  planet.radius = radius;
+  planet.position = location;
+  planet.mass = mass;
+  planet.color = color;
+  planet.glData = initDefaultGlObject();
+  planet.glData.primitiveType = GL_TRIANGLE_FAN;
+  planet.glData.vertexCount = (PLANET_POLY_COUNT + 2);
+  planet.glData.vertexDataBufferSize = planet.glData.vertexCount * (FLOATS_IN_POINT + FLOATS_IN_COLOR) * sizeof(GLfloat);
+  planet.glData.vertexDataBuffer = getTrianglefanCircle(location, radius, PLANET_POLY_COUNT, color);
+  return planet;
+}
+
+struct Spaceship makeShip(struct Vector2 position, float orientation, struct Vector2 velocity, struct Color color) {
+  struct Spaceship ship;
+  ship.position = position;
+  ship.orientation = orientation;
+  ship.velocity = velocity;
+  ship.color = color;
+  ship.mass = SHIP_MASS;
+  ship.acceleration.x = SHIP_INITIAL_ACCELERATION_X;
+  ship.acceleration.y = SHIP_INITIAL_ACCELERATION_Y;
+  ship.thrust = SHIP_INITIAL_THRUST;
+  ship.bodyGlData = getTriangle(ship.position, ship.orientation);
+  setTriangleVertexColorsFromColor(ship.bodyGlData.vertexDataBuffer,ship.color);
+  ship.thrustTriangleGlData = getTriangle(ship.position, ship.orientation + M_PI);
+  struct Color thrustTriangleBaseColor = {THRUST_TRIANGLE_COLOR_R,THRUST_TRIANGLE_COLOR_G,THRUST_TRIANGLE_COLOR_B};
+  struct Color thrustTriangleTipColor = {THRUST_TRIANGLE_COLOR_R, THRUST_TRIANGLE_COLOR_G + 0.5f, THRUST_TRIANGLE_COLOR_B + 0.5f};
+  struct Color colors[] = {thrustTriangleBaseColor, thrustTriangleBaseColor,thrustTriangleTipColor};
+  setTriangleVertexColorsFromColors(ship.thrustTriangleGlData.vertexDataBuffer,colors);
+  return ship;
+}
+
+struct Pad makePad(struct Planet *parentPlanet, float angle) {
+  struct Pad pad;
+  pad.parentPlanet = parentPlanet;
+  pad.angle = angle;
+  struct Vector2 origin = {0, 0};
+  struct Vector2 dimensions = {parentPlanet->radius / 10,parentPlanet->radius / 1.667};
+  struct Vector2 polarPosition = {parentPlanet->radius, angle};
+  pad.glData = getRectangle(origin, dimensions);
+  rotateVertexArray(pad.glData.vertexDataBuffer, pad.glData.vertexCount,pad.angle, FLOATS_IN_POINT);
+  struct Vector2 translationVector = {parentPlanet->position.x, parentPlanet->position.y};
+  struct Vector2 planetRadientVector = {parentPlanet->radius * cosf(angle), parentPlanet->radius * sinf(angle)};
+  translationVector.x += planetRadientVector.x;
+  translationVector.y += planetRadientVector.y;
+  translateVertexArray(pad.glData.vertexDataBuffer, VERTS_IN_RECTANGLE,&translationVector, FLOATS_IN_POINT);
+  return pad;
+}
+
+// OpenGL wrapper functions
+void makeDefaultShaderObject(GLuint shaderProgram, struct GlObjectDataSet *vds) {
+  makeGlObject(vds);
+  vds->shaderProgram = shaderProgram;
+  glVertexAttribPointer(0, FLOATS_IN_POINT, GL_FLOAT, GL_FALSE,(FLOATS_IN_POINT + FLOATS_IN_COLOR) * sizeof(GLfloat),(void *)0);
+  glVertexAttribPointer(1, FLOATS_IN_COLOR, GL_FLOAT, GL_TRUE,(FLOATS_IN_POINT + FLOATS_IN_COLOR) * sizeof(GLfloat),(void *)(FLOATS_IN_POINT * sizeof(GLfloat)));
+  glEnableVertexAttribArray(0);
+  glEnableVertexAttribArray(1);
+}
+
+void makePadShaderObject(GLuint shaderProgram, struct GlObjectDataSet *vds) {
+  makeGlObject(vds);
+  vds->shaderProgram = shaderProgram;
+  glVertexAttribPointer(0, FLOATS_IN_POINT, GL_FLOAT, GL_FALSE,FLOATS_IN_POINT * sizeof(GLfloat), (void *)0);
+  glEnableVertexAttribArray(0);
+}
+
+// Event handlers
+int currentWindowWidth = PLAYFIELD_WIDTH;
+int currentWindowHeight = PLAYFIELD_HEIGHT;
+
+void windowResizeCallback(GLFWwindow *window, int width, int height) {
+  glViewport(0, 0, width, height);
+  currentWindowWidth = width;
+  currentWindowHeight = height;
+}
+
+int windowIsFocused = 1;
+void windowFocusCallback(GLFWwindow *window, int focused) {
+  windowIsFocused = focused;
+}
+
+//Physics
 void updateCamera(struct Camera *cam, struct Spaceship *ship, float deltaTime) {
   cam->position.x = ship->position.x;
   cam->position.y = ship->position.y;
@@ -289,89 +373,6 @@ void applyShipPositionAndOrientation(struct Spaceship *ship) {
   resetTriangleVertices(ship->bodyGlData.vertexDataBuffer);
   rotateVertexArray(ship->bodyGlData.vertexDataBuffer, VERTS_IN_TRIANGLE,ship->orientation, (FLOATS_IN_POINT + FLOATS_IN_COLOR));
   translateVertexArray(ship->bodyGlData.vertexDataBuffer, VERTS_IN_TRIANGLE,&ship->position, (FLOATS_IN_POINT + FLOATS_IN_COLOR));
-}
-
-// OpenGL wrapper functions
-
-void makeDefaultShaderObject(struct GlObjectDataSet *vds) {
-  makeGlObject(vds);
-  glVertexAttribPointer(0, FLOATS_IN_POINT, GL_FLOAT, GL_FALSE,(FLOATS_IN_POINT + FLOATS_IN_COLOR) * sizeof(GLfloat),(void *)0);
-  glVertexAttribPointer(1, FLOATS_IN_COLOR, GL_FLOAT, GL_TRUE,(FLOATS_IN_POINT + FLOATS_IN_COLOR) * sizeof(GLfloat),(void *)(FLOATS_IN_POINT * sizeof(GLfloat)));
-  glEnableVertexAttribArray(0);
-  glEnableVertexAttribArray(1);
-}
-
-void makePadShaderObject(struct GlObjectDataSet *vds) {
-  makeGlObject(vds);
-  glVertexAttribPointer(0, FLOATS_IN_POINT, GL_FLOAT, GL_FALSE,FLOATS_IN_POINT * sizeof(GLfloat), (void *)0);
-  glEnableVertexAttribArray(0);
-}
-
-// Event handlers
-int currentWindowWidth = PLAYFIELD_WIDTH;
-int currentWindowHeight = PLAYFIELD_HEIGHT;
-
-void windowResizeCallback(GLFWwindow *window, int width, int height) {
-  glViewport(0, 0, width, height);
-  currentWindowWidth = width;
-  currentWindowHeight = height;
-}
-
-int windowIsFocused = 1;
-void windowFocusCallback(GLFWwindow *window, int focused) {
-  windowIsFocused = focused;
-}
-
-// Object instance management
-struct Planet makePlanet(struct Vector2 location, GLfloat radius, float mass, struct Color color) {
-  struct Planet planet;
-  planet.radius = radius;
-  planet.position = location;
-  planet.mass = mass;
-  planet.color = color;
-  planet.glData = initDefaultGlObject();
-  planet.glData.primitiveType = GL_TRIANGLE_FAN;
-  planet.glData.vertexCount = (PLANET_POLY_COUNT + 2);
-  planet.glData.vertexDataBufferSize = planet.glData.vertexCount * (FLOATS_IN_POINT + FLOATS_IN_COLOR) * sizeof(GLfloat);
-  planet.glData.vertexDataBuffer = getTrianglefanCircle(location, radius, PLANET_POLY_COUNT, color);
-  return planet;
-}
-
-struct Spaceship makeShip(struct Vector2 position, float orientation, struct Vector2 velocity, struct Color color) {
-  struct Spaceship ship;
-  ship.position = position;
-  ship.orientation = orientation;
-  ship.velocity = velocity;
-  ship.color = color;
-  ship.mass = SHIP_MASS;
-  ship.acceleration.x = SHIP_INITIAL_ACCELERATION_X;
-  ship.acceleration.y = SHIP_INITIAL_ACCELERATION_Y;
-  ship.thrust = SHIP_INITIAL_THRUST;
-  ship.bodyGlData = getTriangle(ship.position, ship.orientation);
-  setTriangleVertexColorsFromColor(ship.bodyGlData.vertexDataBuffer,ship.color);
-  ship.thrustTriangleGlData = getTriangle(ship.position, ship.orientation + M_PI);
-  struct Color thrustTriangleBaseColor = {THRUST_TRIANGLE_COLOR_R,THRUST_TRIANGLE_COLOR_G,THRUST_TRIANGLE_COLOR_B};
-  struct Color thrustTriangleTipColor = {THRUST_TRIANGLE_COLOR_R, THRUST_TRIANGLE_COLOR_G + 0.5f, THRUST_TRIANGLE_COLOR_B + 0.5f};
-  struct Color colors[] = {thrustTriangleBaseColor, thrustTriangleBaseColor,thrustTriangleTipColor};
-  setTriangleVertexColorsFromColors(ship.thrustTriangleGlData.vertexDataBuffer,colors);
-  return ship;
-}
-
-struct Pad makePad(struct Planet *parentPlanet, float angle) {
-  struct Pad pad;
-  pad.parentPlanet = parentPlanet;
-  pad.angle = angle;
-  struct Vector2 origin = {0, 0};
-  struct Vector2 dimensions = {parentPlanet->radius / 10,parentPlanet->radius / 1.667};
-  struct Vector2 polarPosition = {parentPlanet->radius, angle};
-  pad.glData = getRectangle(origin, dimensions);
-  rotateVertexArray(pad.glData.vertexDataBuffer, pad.glData.vertexCount,pad.angle, FLOATS_IN_POINT);
-  struct Vector2 translationVector = {parentPlanet->position.x, parentPlanet->position.y};
-  struct Vector2 planetRadientVector = {parentPlanet->radius * cosf(angle), parentPlanet->radius * sinf(angle)};
-  translationVector.x += planetRadientVector.x;
-  translationVector.y += planetRadientVector.y;
-  translateVertexArray(pad.glData.vertexDataBuffer, VERTS_IN_RECTANGLE,&translationVector, FLOATS_IN_POINT);
-  return pad;
 }
 
 _Bool isTriangleCollidingWithCircle(struct Spaceship *triangle, struct Planet *circle) {
@@ -489,9 +490,9 @@ int main(int argc, char *argv[]) {
   GLuint defaultFragmentShader = makeGlShader(defaultFragmentShaderSource, GL_FRAGMENT_SHADER);
   GLuint defaultShaderProgram = glCreateProgram();
   linkGlShaders(defaultShaderProgram, defaultVertexShader,defaultFragmentShader);
-  makeDefaultShaderObject(&playerShip.bodyGlData);
-  makeDefaultShaderObject(&playerShip.thrustTriangleGlData);
-  makeDefaultShaderObject(&paleBlueDot.glData);
+  makeDefaultShaderObject(defaultShaderProgram, &playerShip.bodyGlData);
+  makeDefaultShaderObject(defaultShaderProgram, &playerShip.thrustTriangleGlData);
+  makeDefaultShaderObject(defaultShaderProgram, &paleBlueDot.glData);
 
   // Setup pad shader and assign to objects
   const char *padVertexShaderSource = readShaderFile("shaders/pad.vert");
@@ -500,7 +501,7 @@ int main(int argc, char *argv[]) {
   GLuint padFragmentShader = makeGlShader(padFragmentShaderSource, GL_FRAGMENT_SHADER);
   GLuint padShaderProgram = glCreateProgram();
   linkGlShaders(padShaderProgram, padVertexShader, padFragmentShader);
-  makePadShaderObject(&cssc.glData);
+  makePadShaderObject(padShaderProgram, &cssc.glData);
 
   // Make gameover screen
   struct Vector2 gameoverTextPosition = {-0.0f, -0.0f};
@@ -618,27 +619,7 @@ int main(int argc, char *argv[]) {
           timeAccumulator += frameTime;
           glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
           glClear(GL_COLOR_BUFFER_BIT);
-          glUseProgram(textShaderProgram);
-
-          setGlUniform2f(textShaderProgram, "iResolution", currentWindowWidth, currentWindowHeight);
-          GLuint cbmchargen[CBM_CHARGEN_SIZE];
-          for(size_t currentByte = 0; currentByte < CBM_CHARGEN_SIZE; currentByte++) {
-            cbmchargen[currentByte] = c64chargen[currentByte];
-          }
-          setGlUniform1uiv(textShaderProgram, "chargen", CBM_CHARGEN_SIZE, cbmchargen);
-          GLuint screenBytes[CBM_SCREEN_SIZE];
-          for(size_t currentByte = 0; currentByte < CBM_SCREEN_SIZE; currentByte++){
-            screenBytes[currentByte] = currentByte < 256 ? currentByte : 0;
-          }
-          setGlUniform4fv(textShaderProgram, "colorPallet", CBM_COLOR_PALLET_SIZE, (GLfloat*) c64colorPallet);
-          setGlUniform1uiv(textShaderProgram, "screen", CBM_SCREEN_SIZE, screenBytes);
-          GLuint colorBytes[CBM_SCREEN_SIZE];
-          for(size_t currentByte = 0; currentByte < CBM_SCREEN_SIZE; currentByte++) {
-            colorBytes[currentByte] = currentByte % CBM_COLOR_PALLET_SIZE;
-          }
-          setGlUniform1uiv(textShaderProgram, "colors", CBM_SCREEN_SIZE, colorBytes);
-          
-          drawGlObject(&gameoverText.glData);
+          drawText(&gameoverText.glData, c64chargen, currentWindowWidth, currentWindowHeight);
 
           glfwSwapBuffers(window);
           sleep(1);
