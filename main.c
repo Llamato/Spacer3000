@@ -101,7 +101,6 @@ struct Camera {
 };
 
 struct Spaceship {
-
   // Physical Data
   struct Vector2 position;
   struct Vector2 velocity;
@@ -503,12 +502,18 @@ int main(int argc, char *argv[]) {
   linkGlShaders(padShaderProgram, padVertexShader, padFragmentShader);
   makePadShaderObject(padShaderProgram, &cssc.glData);
 
-  // Make gameover screen
-  struct Vector2 gameoverTextPosition = {-0.0f, -0.0f};
-  struct Vector2 gameoverTextDimensions = {1,1};
-  char* c64chargen = loadChargen(CBM_CHARGEN_FILENAME);
-  struct cbmScreen gameoverText = makeCbmScreen(gameoverTextPosition, gameoverTextDimensions, c64chargen, c64colorPallet);
-
+  // Make gameover and landing screens
+  struct Vector2 gameendTextboxPosition = {0.0f, 0.0f};
+  struct Vector2 gameendTextboxDimensions = {1.0f,1.0f};
+  char* c64GraphCharset = loadChargen(CBM_CHARGEN_FILENAME);
+  char* c64CasedCharset = c64GraphCharset+CBM_CHARSET_SIZE;
+  struct cbmScreen gameendScreen = makeCbmScreen(gameendTextboxPosition, gameendTextboxDimensions, c64CasedCharset, c64colorPallet);
+  clearCbmScreen(&gameendScreen);
+  struct cbmScreenPosition gameendTextOnScreenPosition = {0, 0};
+  while(gameendTextOnScreenPosition.row < CBM_SCREEN_ROWS) {
+    writeStringToCbmScreen(&gameendScreen, gameendTextOnScreenPosition, "You crashed!", CBM_COLOR_RED);
+    gameendTextOnScreenPosition.row++;
+  }
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
   const char *textVertexShaderSource = readShaderFile(TEXT_VERTEX_SHADER_FILENAME);
@@ -517,7 +522,7 @@ int main(int argc, char *argv[]) {
   GLuint textFragmentShader = makeGlShader(textFragmentShaderSource, GL_FRAGMENT_SHADER);
   GLuint textShaderProgram = glCreateProgram();
   linkGlShaders(textShaderProgram, textVertexShader, textFragmentShader);
-  makeTextShaderObject(textShaderProgram, &gameoverText.glData);
+  makeTextShaderObject(textShaderProgram, &gameendScreen.glData);
 
   // Unbind the buffers after use
   glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -609,7 +614,6 @@ int main(int argc, char *argv[]) {
         // Make fuel bar
         // Refill fuel here
       }else if(isTriangleCollidingWithCircle(&playerShip, &paleBlueDot)){
-        printf("Game Over! Showing screen...\n");
         uint8_t currentCharacterIndex = 0;
         while(!glfwWindowShouldClose(window)) {
           gameLoopEndTime = glfwGetTime();
@@ -617,7 +621,7 @@ int main(int argc, char *argv[]) {
           timeAccumulator += frameTime;
           glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
           glClear(GL_COLOR_BUFFER_BIT);
-          drawCbmScreen(&gameoverText, currentWindowWidth, currentWindowHeight);
+          drawCbmScreen(&gameendScreen, currentWindowWidth, currentWindowHeight);
 
           glfwSwapBuffers(window);
           sleep(1);
@@ -641,6 +645,7 @@ int main(int argc, char *argv[]) {
   glDeleteProgram(defaultShaderProgram);
   deleteGlObject(&cssc.glData);
   glDeleteProgram(padShaderProgram);
+  deleteGlObject(&gameendScreen.glData);
   glfwDestroyWindow(window);
   glfwTerminate();
   return window == NULL;

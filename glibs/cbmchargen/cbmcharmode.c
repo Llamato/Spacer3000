@@ -1,6 +1,7 @@
 #include "cbmcharmode.h"
 #include "cbmchargen/cbmcharmode.h"
 #include "common.h"
+#include <stddef.h>
 
 char* loadChargen(char* filename) {
     if(access(filename, F_OK) != 0){
@@ -13,23 +14,23 @@ char* loadChargen(char* filename) {
         return (char*)1;
     }
     char *bytes = malloc(CBM_CHARGEN_SIZE);
-    if(fread(bytes, 8, 256, f) < 1){
+    if(fread(bytes, CBM_CHAR_SIZE, CBM_CHARSETS_PER_CHARGEN*CBM_CHARSET_CHARCOUNT, f) < 1){
         printf("Error loading chargen: %s\n", filename);
     }
     fclose(f);
     return bytes;
 }
 
-char asciiToPetscii(char asciiChar) {
-    if(asciiChar >= 'A' && asciiChar <= 'Z'){
-        return asciiChar - '@';
-    }
-    return asciiChar;
+unsigned char asciiToPetscii(unsigned char a) {
+    if (a >= 'A' && a <= 'Z') return a + 128;
+    if (a >= 'a' && a <= 'z') return a - 32;
+    return a;
 }
 
-char* asciiStringToPetsciiString(char *asciiString) {
+
+unsigned char* asciiStringToPetsciiString(char *asciiString) {
     unsigned int currentChar = 0;
-    char* petsciiString = malloc((strlen(asciiString)+1) * sizeof(char));
+    unsigned char* petsciiString = malloc((strlen(asciiString)+1) * sizeof(char));
     while(asciiString[currentChar] != '\0') {
         petsciiString[currentChar] = asciiToPetscii(asciiString[currentChar]);
         currentChar++;
@@ -38,38 +39,36 @@ char* asciiStringToPetsciiString(char *asciiString) {
     return petsciiString;
 }
 
-char petsciiToScreencode(char petsciiChar) {
-    char screencode;
-    if(petsciiChar < (char) 0x20) {
-        screencode = petsciiChar + 128;
-    }else if(petsciiChar >= (char) 0x20 && petsciiChar < (char) 0x40) {
-        screencode = petsciiChar;
-    }else if(petsciiChar >= (char) 0x40 && petsciiChar < (char) 0x60) {
-        screencode = petsciiChar - 64;
-    }else if(petsciiChar >= (char) 0x60 && petsciiChar < (char) 0x80) {
-        screencode = petsciiChar - 32;
-    }else if(petsciiChar >= (char) 0x80 && petsciiChar < (char) 0xA0) {
-        screencode = petsciiChar + 64;
-    }else if(petsciiChar >= (char) 0xA0 && petsciiChar < (char) 0xC0) {
-        screencode = petsciiChar - 64;
-    }else if(petsciiChar >= (char) 0xC0 && petsciiChar < (char) 0xE0) {
-        screencode = petsciiChar - 128;
-    }else if(petsciiChar >= (char) 0xE0 && petsciiChar < (char) 0xFF) {
-        screencode = petsciiChar - 128;
-    }else if(petsciiChar == (char) 0xFF) {
-        screencode = 0x5E;
-    }
-    return screencode;
+unsigned char petsciiToGraphScreencode(unsigned char p) {
+    if (p < 0x20)  return p + 128;
+    if (p < 0x40)  return p;
+    if (p < 0x60)  return p - 64;
+    if (p < 0x80)  return p - 32;
+    if (p < 0xA0)  return p + 64;
+    if (p < 0xC0)  return p - 64;
+    if (p < 0xFF)  return p - 128;
+    return 0x5E; // Pi
 }
 
-char* petsciiStringToScreencodeString(char *petsciiString){
+unsigned char petsciiToCasedScreencode(unsigned char p) {
+    if (p >= 65 && p <= 90) return p - 64;
+    if (p >= 193 && p <= 218) return p - 128;
+    if (p >= 32 && p <= 63) return p;
+    if (p >= 96 && p <= 127) return p - 32;
+    if (p >= 160 && p <= 192) return p - 64;
+    if (p >= 224) return p - 128;
+    return p;
+}
+
+unsigned char* petsciiStringToScreencodeString(unsigned char *petsciiString){
     unsigned int currentChar = 0;
-    char* screencodeString = malloc((strlen(petsciiString)+1) * sizeof(char));
+    unsigned char* screencodeString = malloc((strlen((char*) petsciiString)+1) * sizeof(char));
     while(petsciiString[currentChar] != '\0') {
-        petsciiString[currentChar] = petsciiToScreencode(petsciiString[currentChar]);
+        screencodeString[currentChar] = petsciiToCasedScreencode(petsciiString[currentChar]);
         currentChar++;
     }
-    return petsciiString;
+    screencodeString[currentChar] = '\0';
+    return screencodeString;
 }
 
 uint8_t getClosestPalletColor(struct Color* pallet, struct Color color) {
@@ -121,7 +120,8 @@ struct GlObjectDataSet getTextRectangle(struct Vector2 center, struct Vector2 di
     rectangle.vertexDataBuffer[TOP_RIGHT_VERTEX_INDEX * floatsInVertex + VECTOR_Y] = top;
     rectangle.vertexDataBuffer[TOP_RIGHT_VERTEX_INDEX * floatsInVertex + VECTOR_Z] = 0.0f;
     
-    rectangle.indexCount = 6;
+    // Vertex indexing
+    rectangle.indexCount = 2 * VERTS_IN_TRIANGLE;
     rectangle.vertexIndexBuffer = malloc(rectangle.indexCount * sizeof(GLuint));
     rectangle.vertexIndexBuffer[0] = 0;
     rectangle.vertexIndexBuffer[1] = 1;
@@ -152,22 +152,26 @@ void clearCbmScreen(struct cbmScreen* screen) {
 }
 
 void writeChargenToCbmScreen(struct cbmScreen* screen, size_t offset) {
-    for(size_t currentBlock = 0; currentBlock < CBM_CHARGEN_SIZE; currentBlock++) {
-        screen->chars[currentBlock+offset] = screen->chargen[currentBlock];
-        screen->colors[currentBlock+offset] = currentBlock % CBM_COLOR_PALLET_SIZE;
+    for(size_t currentChar = 0; currentChar < CBM_CHARSET_CHARCOUNT; currentChar++) {
+        screen->chars[currentChar+offset] = currentChar;
+        screen->colors[currentChar+offset] = CBM_COLOR_PINK;
     }
 }
 
-void writeStringToCbmScreen(struct cbmScreen* screen, struct Vector2 screenPosition, char* asciiString, uint8_t palletColor) {
-    char* petsciiString = asciiStringToPetsciiString(asciiString);
-    char* screencodeString = petsciiStringToScreencodeString(petsciiString);
-    size_t stringStartIndex = screenPosition.y * CBM_SCREEN_COLUMNS + screenPosition.x;
+void writeStringToCbmScreen(struct cbmScreen* screen, struct cbmScreenPosition screenPosition, char* asciiString, uint8_t palletColor) {
+    unsigned char* petsciiString = asciiStringToPetsciiString(asciiString);
+    unsigned char* screencodeString = petsciiStringToScreencodeString(petsciiString);
+    size_t stringStartIndex = screenPosition.row * CBM_SCREEN_COLUMNS + screenPosition.column;
     size_t currentPosition = 0;
-    char screencodeChar;
-    while((screencodeChar = asciiString[currentPosition])) {
-        screen->chars[currentPosition] = screencodeString[currentPosition];
-        screen->colors[currentPosition] = palletColor;
+    char currentScreencode = screencodeString[currentPosition];
+    while(currentScreencode != '\0') {
+        screen->chars[stringStartIndex+currentPosition] = currentScreencode;
+        screen->colors[stringStartIndex+currentPosition] = palletColor;
+        currentPosition++;
+        currentScreencode = screencodeString[currentPosition];
     }
+    free(petsciiString);
+    free(screencodeString);
 }
 
 void makeTextShaderObject(GLuint shaderProgram, struct GlObjectDataSet *vds) {
@@ -183,11 +187,11 @@ void makeTextShaderObject(GLuint shaderProgram, struct GlObjectDataSet *vds) {
 void drawCbmScreen(struct cbmScreen* screen, GLfloat width, GLfloat height) { 
     glUseProgram(screen->glData.shaderProgram);
     setGlUniform2f(screen->glData.shaderProgram, "iResolution", width, height);
-    GLuint paddedChargenBytes[CBM_CHARGEN_SIZE];
-    for(size_t currentByte = 0; currentByte < CBM_CHARGEN_SIZE; currentByte++) {
+    GLuint paddedChargenBytes[CBM_CHARSET_SIZE];
+    for(size_t currentByte = 0; currentByte < CBM_CHARSET_SIZE; currentByte++) {
         paddedChargenBytes[currentByte] = screen->chargen[currentByte];
     }
-    setGlUniform1uiv(screen->glData.shaderProgram, "chargen", CBM_CHARGEN_SIZE, paddedChargenBytes);
+    setGlUniform1uiv(screen->glData.shaderProgram, "chargen", CBM_CHARSET_SIZE, paddedChargenBytes);
     GLuint paddedCharBytes[CBM_SCREEN_SIZE];
     for(size_t currentByte = 0; currentByte < CBM_SCREEN_SIZE; currentByte++){
         paddedCharBytes[currentByte] = screen->chars[currentByte];
