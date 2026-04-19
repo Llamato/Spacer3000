@@ -11,16 +11,16 @@
 #include <unistd.h>
 #include "glibs/common.h"
 #include "gvmath/gvmath.h"
-#include "cbmchargen/cbmcharmode.h"
+#include "glibs/cbmText/cbmcharmode.h"
 
 //Filepaths
 #define DEFAULT_VERTEX_SHADER_FILENAME "shaders/default.vert"
 #define DEFAULT_FRAGMENT_SHADER_FILENAME "shaders/default.frag"
 #define PAD_VERTEX_SHADER_FILENAME "shaders/pad.vert"
 #define PAD_FRAGMENT_SHADER_FILENAME "shaders/pad.frag"
-#define TEXT_VERTEX_SHADER_FILENAME "shaders/cbmcharmode.vert"
-#define TEXT_FRAGMENT_SHADER_FILENAME "shaders/cbmcharmode.frag"
-#define CBM_CHARGEN_FILENAME "glibs/cbmchargen/c64.bin"
+#define TEXT_VERTEX_SHADER_FILENAME "glibs/cbmText/shaders/cbmcharmode.vert"
+#define TEXT_FRAGMENT_SHADER_FILENAME "glibs/cbmText/shaders/cbmcharmode.frag"
+#define CBM_CHARGEN_FILENAME "glibs/cbmText/c64.bin"
 
 // Debug!!!
 #define DEBUG 0
