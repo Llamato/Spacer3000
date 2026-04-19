@@ -1,0 +1,3 @@
+[submodule "glibs/cbmText"]
+	path = glibs/cbmText
+	url = git@github.com:Llamato/cbmText.git
